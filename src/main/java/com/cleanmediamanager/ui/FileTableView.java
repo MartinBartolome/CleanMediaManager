@@ -133,9 +133,9 @@ public class FileTableView {
                 JMenuItem openFolder = new JMenuItem("Open Containing Folder");
                 openFolder.addActionListener(ae -> {
                     try {
-                        if (Desktop.isDesktopSupported()) {
-                            Desktop.getDesktop().open(file.getPath().getParent().toFile());
-                        }
+                        new ProcessBuilder("xdg-open",
+                                file.getPath().getParent().toAbsolutePath().toString())
+                                .start();
                     } catch (Exception ex) {
                         JOptionPane.showMessageDialog(table,
                                 "Ordner konnte nicht geöffnet werden:\n" + ex.getMessage(),
@@ -148,9 +148,9 @@ public class FileTableView {
                     JMenuItem openFile = new JMenuItem("Open File");
                     openFile.addActionListener(ae -> {
                         try {
-                            if (Desktop.isDesktopSupported()) {
-                                Desktop.getDesktop().open(file.getPath().toFile());
-                            }
+                            new ProcessBuilder("xdg-open",
+                                    file.getPath().toAbsolutePath().toString())
+                                    .start();
                         } catch (Exception ex) {
                             JOptionPane.showMessageDialog(table,
                                     "Datei konnte nicht geöffnet werden:\n" + ex.getMessage(),
