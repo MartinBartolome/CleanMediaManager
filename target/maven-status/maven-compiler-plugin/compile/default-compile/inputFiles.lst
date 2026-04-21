@@ -1,0 +1,14 @@
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/core/MovieMatcher.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/core/FileScanner.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/ui/FileTableModel.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/core/FormatService.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/ui/MainWindow.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/api/TmdbClient.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/model/MovieMatch.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/ui/Controller.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/core/FilenameParser.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/ui/FileTableView.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/core/RenameService.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/model/MediaFile.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/Main.java
+/home/runner/work/CleanMediaManager/CleanMediaManager/src/main/java/com/cleanmediamanager/model/MatchStatus.java
