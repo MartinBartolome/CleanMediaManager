@@ -11,9 +11,14 @@ import com.cleanmediamanager.model.MediaType;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.prefs.Preferences;
 
 public class Controller {
@@ -244,6 +249,84 @@ public class Controller {
 
     public void onLanguageChanged(String language) {
         prefs.put(PREF_LANGUAGE, language);
+    }
+
+    public void onOpenNetworkPathClicked() {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.add(new JLabel("Netzwerkpfad eingeben:"), BorderLayout.NORTH);
+
+        JTextField pathField = new JTextField("smb://", 40);
+        panel.add(pathField, BorderLayout.CENTER);
+
+        JLabel hint = new JLabel("<html><small>Beispiele:&nbsp; smb://server/share &nbsp;|&nbsp; //server/share &nbsp;|&nbsp; /mnt/nas</small></html>");
+        panel.add(hint, BorderLayout.SOUTH);
+
+        int result = JOptionPane.showConfirmDialog(mainWindow.getFrame(), panel,
+                "Netzwerkpfad öffnen", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String input = pathField.getText().trim();
+        if (input.isBlank()) return;
+
+        Path resolved = resolveNetworkPath(input);
+        if (resolved == null || !Files.exists(resolved)) {
+            log("[ERROR] Pfad nicht gefunden oder nicht erreichbar: " + input);
+            JOptionPane.showMessageDialog(mainWindow.getFrame(),
+                    "Pfad nicht erreichbar:\n" + input +
+                    "\n\nBitte sicherstellen, dass das Netzlaufwerk eingebunden ist.",
+                    "Pfad nicht gefunden", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        loadFiles(List.of(resolved.toFile()));
+    }
+
+    private Path resolveNetworkPath(String input) {
+        if (input.startsWith("smb://")) {
+            Path gvfs = tryResolveViaGvfs(input);
+            if (gvfs != null) return gvfs;
+        }
+        if (input.startsWith("file://")) {
+            try { return Paths.get(URI.create(input)); } catch (Exception ignored) {}
+        }
+        try { return Paths.get(input); } catch (Exception e) { return null; }
+    }
+
+    /**
+     * Resolves an smb:// URI to the local gvfs mount point.
+     * On Linux, gvfs mounts SMB shares under
+     * /run/user/&lt;uid&gt;/gvfs/smb-share:server=&lt;host&gt;,share=&lt;share&gt;
+     */
+    private Path tryResolveViaGvfs(String smbUri) {
+        try {
+            String normalized = smbUri.endsWith("/") ? smbUri.substring(0, smbUri.length() - 1) : smbUri;
+            URI uri = URI.create(normalized);
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) return null;
+
+            String uriPath = uri.getPath() != null ? uri.getPath() : "";
+            String[] parts = uriPath.split("/", 3);
+            String share = parts.length > 1 ? parts[1] : "";
+            String subPath = parts.length > 2 ? parts[2] : "";
+
+            for (String base : new String[]{"/run/user", "/var/run/user"}) {
+                Path runUser = Paths.get(base);
+                if (!Files.isDirectory(runUser)) continue;
+                try (var stream = Files.list(runUser)) {
+                    Optional<Path> mountPoint = stream
+                            .map(uidDir -> uidDir.resolve("gvfs/smb-share:server=" + host + ",share=" + share))
+                            .filter(Files::isDirectory)
+                            .findFirst();
+                    if (mountPoint.isPresent()) {
+                        Path mp = mountPoint.get();
+                        return subPath.isEmpty() ? mp : mp.resolve(subPath);
+                    }
+                } catch (IOException ignored) {}
+            }
+        } catch (Exception e) {
+            log("[WARN] gvfs-Auflösung fehlgeschlagen: " + e.getMessage());
+        }
+        return null;
     }
 
     public void onModeChanged(String mode) {

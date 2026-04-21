@@ -65,6 +65,10 @@ public class MainWindow {
         openFolder.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, KeyEvent.CTRL_DOWN_MASK));
         openFolder.addActionListener(e -> controller.onLoadButtonClicked());
 
+        JMenuItem openNetwork = new JMenuItem("Open Network Path...", KeyEvent.VK_N);
+        openNetwork.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, KeyEvent.CTRL_DOWN_MASK));
+        openNetwork.addActionListener(e -> controller.onOpenNetworkPathClicked());
+
         JMenuItem clearItem = new JMenuItem("Clear List");
         clearItem.addActionListener(e -> controller.clearFiles());
 
@@ -73,6 +77,7 @@ public class MainWindow {
         exitItem.addActionListener(e -> System.exit(0));
 
         fileMenu.add(openFolder);
+        fileMenu.add(openNetwork);
         fileMenu.add(clearItem);
         fileMenu.addSeparator();
         fileMenu.add(exitItem);
@@ -113,7 +118,12 @@ public class MainWindow {
         settingsButton.setToolTipText("Configure API key and language");
         settingsButton.addActionListener(e -> controller.onSettingsButtonClicked());
 
+        JButton networkButton = new JButton("🌐 Network");
+        networkButton.setToolTipText("Open network path (e.g. smb://server/share)");
+        networkButton.addActionListener(e -> controller.onOpenNetworkPathClicked());
+
         toolBar.add(loadButton);
+        toolBar.add(networkButton);
         toolBar.add(matchButton);
         toolBar.add(renameButton);
         toolBar.addSeparator();
