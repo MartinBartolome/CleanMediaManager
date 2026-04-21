@@ -59,6 +59,25 @@ public class FileTableView {
         JScrollPane rightScroll = new JScrollPane(rightTable);
         rightScroll.setBorder(BorderFactory.createTitledBorder("Renamed Files"));
 
+        // Synchronize vertical scrolling between both panels
+        boolean[] syncing = {false};
+        leftScroll.getVerticalScrollBar().getModel().addChangeListener(e -> {
+            if (!syncing[0]) {
+                syncing[0] = true;
+                rightScroll.getVerticalScrollBar().getModel().setValue(
+                        leftScroll.getVerticalScrollBar().getModel().getValue());
+                syncing[0] = false;
+            }
+        });
+        rightScroll.getVerticalScrollBar().getModel().addChangeListener(e -> {
+            if (!syncing[0]) {
+                syncing[0] = true;
+                leftScroll.getVerticalScrollBar().getModel().setValue(
+                        rightScroll.getVerticalScrollBar().getModel().getValue());
+                syncing[0] = false;
+            }
+        });
+
         splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftScroll, rightScroll);
         splitPane.setResizeWeight(0.5);
         splitPane.setDividerLocation(0.5);
