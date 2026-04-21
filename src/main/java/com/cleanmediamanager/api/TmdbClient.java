@@ -80,7 +80,7 @@ public class TmdbClient {
                 results.add(new MovieMatch(id, title, year, overview));
             }
         } catch (Exception e) {
-            // Return empty list on parse error
+            System.err.println("[TmdbClient] Failed to parse API response: " + e.getMessage());
         }
         return results;
     }

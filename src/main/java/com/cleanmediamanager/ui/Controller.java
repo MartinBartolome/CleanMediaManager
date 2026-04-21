@@ -159,7 +159,8 @@ public class Controller {
             return;
         }
 
-        List<String> results = renameService.executeRename(mediaFiles, false);
+        final boolean dryRun = false;
+        List<String> results = renameService.executeRename(mediaFiles, dryRun);
         for (String line : results) {
             log(line);
         }

@@ -6,7 +6,6 @@ import com.cleanmediamanager.model.MatchStatus;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +39,11 @@ public class RenameService {
                 log.add("[DRY RUN] Would rename: " + file.getOriginalName() + "  →  " + file.getNewName());
             } else {
                 try {
-                    Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                    if (Files.exists(target)) {
+                        log.add("[SKIP] Target already exists, skipping: " + file.getNewName());
+                        continue;
+                    }
+                    Files.move(source, target);
                     log.add("[OK] Renamed: " + file.getOriginalName() + "  →  " + file.getNewName());
                     file.setOriginalName(file.getNewName());
                 } catch (IOException e) {
