@@ -14,6 +14,7 @@ public class MainWindow {
     private JButton matchButton;
     private final Controller controller;
     private FileTableView tableView;
+    private JComboBox<String> langCombo;
 
     public MainWindow() {
         frame = new JFrame("CleanMediaManager - FileBot Clone");
@@ -126,7 +127,7 @@ public class MainWindow {
 
         toolBar.add(new JLabel("  Lang: "));
         String[] languages = {"en-US", "de-DE", "fr-FR", "es-ES", "ja-JP"};
-        JComboBox<String> langCombo = new JComboBox<>(languages);
+        langCombo = new JComboBox<>(languages);
         langCombo.setMaximumSize(new Dimension(90, 28));
         Preferences prefs = Preferences.userNodeForPackage(Controller.class);
         langCombo.setSelectedItem(prefs.get("tmdb_language", "en-US"));
@@ -138,6 +139,10 @@ public class MainWindow {
 
     public void setMatchButtonEnabled(boolean enabled) {
         SwingUtilities.invokeLater(() -> matchButton.setEnabled(enabled));
+    }
+
+    public void updateLanguageCombo(String language) {
+        SwingUtilities.invokeLater(() -> langCombo.setSelectedItem(language));
     }
 
     public void appendLog(String message) {

@@ -202,6 +202,7 @@ public class Controller {
             String newLang = (String) langCombo.getSelectedItem();
             prefs.put(PREF_API_KEY, newKey);
             prefs.put(PREF_LANGUAGE, newLang != null ? newLang : "en-US");
+            mainWindow.updateLanguageCombo(newLang != null ? newLang : "en-US");
             log("[INFO] Settings saved.");
         }
     }
