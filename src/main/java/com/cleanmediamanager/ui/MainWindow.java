@@ -35,6 +35,7 @@ public class MainWindow {
             SwingUtilities.invokeLater(() -> controller.loadFiles(files));
         });
         controller.setTableView(tableView);
+        tableView.setOnRemoveRow(row -> controller.removeFileAt(row));
         mainPanel.add(tableView.getSplitPane(), BorderLayout.CENTER);
 
         // Log panel

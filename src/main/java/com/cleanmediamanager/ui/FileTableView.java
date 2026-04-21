@@ -7,6 +7,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.io.File;
 import java.util.List;
@@ -19,6 +20,11 @@ public class FileTableView {
     private final FileTableModel leftModel;
     private final FileTableModel rightModel;
     private final JSplitPane splitPane;
+    private Consumer<Integer> onRemoveRow;
+
+    public void setOnRemoveRow(Consumer<Integer> onRemoveRow) {
+        this.onRemoveRow = onRemoveRow;
+    }
 
     public FileTableView(Consumer<List<File>> onFilesDropped) {
         leftModel = new FileTableModel(FileTableModel.PanelType.LEFT);
@@ -47,6 +53,10 @@ public class FileTableView {
                 }
             }
         });
+
+        // Context menus
+        setupContextMenu(leftTable, leftModel, true);
+        setupContextMenu(rightTable, rightModel, false);
 
         // Setup drag and drop on left panel
         if (onFilesDropped != null) {
@@ -98,6 +108,90 @@ public class FileTableView {
     private void scrollToRow(JTable table, int row) {
         Rectangle rect = table.getCellRect(row, 0, true);
         table.scrollRectToVisible(rect);
+    }
+
+    private void setupContextMenu(JTable table, FileTableModel model, boolean isLeft) {
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) { handlePopup(e); }
+
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) { handlePopup(e); }
+
+            private void handlePopup(java.awt.event.MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+                int row = table.rowAtPoint(e.getPoint());
+                if (row < 0) return;
+                table.setRowSelectionInterval(row, row);
+
+                MediaFile file = model.getFileAt(row);
+                if (file == null) return;
+
+                JPopupMenu menu = new JPopupMenu();
+
+                // --- Open actions ---
+                JMenuItem openFolder = new JMenuItem("Open Containing Folder");
+                openFolder.addActionListener(ae -> {
+                    try {
+                        if (Desktop.isDesktopSupported()) {
+                            Desktop.getDesktop().open(file.getPath().getParent().toFile());
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(table,
+                                "Ordner konnte nicht geöffnet werden:\n" + ex.getMessage(),
+                                "Fehler", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+                menu.add(openFolder);
+
+                if (isLeft) {
+                    JMenuItem openFile = new JMenuItem("Open File");
+                    openFile.addActionListener(ae -> {
+                        try {
+                            if (Desktop.isDesktopSupported()) {
+                                Desktop.getDesktop().open(file.getPath().toFile());
+                            }
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(table,
+                                    "Datei konnte nicht geöffnet werden:\n" + ex.getMessage(),
+                                    "Fehler", JOptionPane.ERROR_MESSAGE);
+                        }
+                    });
+                    menu.add(openFile);
+                }
+
+                menu.addSeparator();
+
+                // --- Clipboard actions ---
+                String displayName = isLeft
+                        ? file.getOriginalName()
+                        : (file.getNewName() != null ? file.getNewName() : file.getOriginalName());
+
+                JMenuItem copyName = new JMenuItem("Copy Filename");
+                copyName.addActionListener(ae ->
+                        Toolkit.getDefaultToolkit().getSystemClipboard()
+                                .setContents(new StringSelection(displayName), null));
+                menu.add(copyName);
+
+                JMenuItem copyPath = new JMenuItem("Copy Full Path");
+                copyPath.addActionListener(ae ->
+                        Toolkit.getDefaultToolkit().getSystemClipboard()
+                                .setContents(new StringSelection(
+                                        file.getPath().toAbsolutePath().toString()), null));
+                menu.add(copyPath);
+
+                menu.addSeparator();
+
+                // --- List management ---
+                JMenuItem removeItem = new JMenuItem("Remove from List");
+                removeItem.addActionListener(ae -> {
+                    if (onRemoveRow != null) onRemoveRow.accept(row);
+                });
+                menu.add(removeItem);
+
+                menu.show(table, e.getX(), e.getY());
+            }
+        });
     }
 
     private void setupDragAndDrop(JTable table, Consumer<List<File>> onFilesDropped) {

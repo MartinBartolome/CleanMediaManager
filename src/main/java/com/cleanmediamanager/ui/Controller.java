@@ -340,6 +340,14 @@ public class Controller {
         log("[INFO] File list cleared.");
     }
 
+    public void removeFileAt(int row) {
+        if (row >= 0 && row < mediaFiles.size()) {
+            MediaFile removed = mediaFiles.remove(row);
+            refreshTables();
+            log("[INFO] Removed: " + removed.getOriginalName());
+        }
+    }
+
     private void refreshTables() {
         tableView.getLeftModel().setFiles(mediaFiles);
         tableView.getRightModel().setFiles(mediaFiles);
