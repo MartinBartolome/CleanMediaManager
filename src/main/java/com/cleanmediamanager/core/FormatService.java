@@ -1,7 +1,9 @@
 package com.cleanmediamanager.core;
 
+import com.cleanmediamanager.model.EpisodeMatch;
 import com.cleanmediamanager.model.MediaFile;
 import com.cleanmediamanager.model.MovieMatch;
+import com.cleanmediamanager.model.SeriesMatch;
 
 public class FormatService {
 
@@ -26,5 +28,22 @@ public class FormatService {
             return filename.substring(dotIdx);
         }
         return "";
+    }
+
+    /**
+     * Formats an episode filename as:
+     * {@code Series Name - S01E02 - Episode Title.ext}
+     */
+    public String formatEpisode(MediaFile file, SeriesMatch series, EpisodeMatch episode) {
+        String ext = getExtension(file.getOriginalName());
+        String seriesName = series.getName();
+        String seEp = String.format("S%02dE%02d", episode.getSeason(), episode.getEpisodeNumber());
+        String epName = episode.getName();
+
+        if (epName != null && !epName.isBlank()) {
+            return seriesName + " - " + seEp + " - " + epName + ext;
+        } else {
+            return seriesName + " - " + seEp + ext;
+        }
     }
 }

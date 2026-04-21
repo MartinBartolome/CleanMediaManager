@@ -1,6 +1,8 @@
 package com.cleanmediamanager.api;
 
+import com.cleanmediamanager.model.EpisodeMatch;
 import com.cleanmediamanager.model.MovieMatch;
+import com.cleanmediamanager.model.SeriesMatch;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -83,5 +85,101 @@ public class TmdbClient {
             System.err.println("[TmdbClient] Failed to parse API response: " + e.getMessage());
         }
         return results;
+    }
+
+    public CompletableFuture<List<SeriesMatch>> searchSeries(String title, String year) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
+        try {
+            String encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8);
+            StringBuilder url = new StringBuilder(BASE_URL)
+                    .append("/search/tv")
+                    .append("?api_key=").append(apiKey)
+                    .append("&query=").append(encodedTitle)
+                    .append("&language=").append(language);
+
+            if (year != null && !year.isBlank()) {
+                url.append("&first_air_date_year=").append(year);
+            }
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url.toString()))
+                    .timeout(Duration.ofSeconds(15))
+                    .GET()
+                    .build();
+
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(response -> parseSeriesResponse(response.body()))
+                    .exceptionally(ex -> Collections.emptyList());
+
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+    }
+
+    private List<SeriesMatch> parseSeriesResponse(String body) {
+        List<SeriesMatch> results = new ArrayList<>();
+        try {
+            JSONObject json = new JSONObject(body);
+            JSONArray array = json.optJSONArray("results");
+            if (array == null) return results;
+
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject obj = array.getJSONObject(i);
+                int id = obj.optInt("id", 0);
+                String name = obj.optString("name", "Unknown");
+                String firstAirDate = obj.optString("first_air_date", "");
+                String firstAirYear = firstAirDate.length() >= 4 ? firstAirDate.substring(0, 4) : "";
+                String overview = obj.optString("overview", "");
+                results.add(new SeriesMatch(id, name, firstAirYear, overview));
+            }
+        } catch (Exception e) {
+            System.err.println("[TmdbClient] Failed to parse series response: " + e.getMessage());
+        }
+        return results;
+    }
+
+    public CompletableFuture<EpisodeMatch> getEpisodeDetails(int seriesId, int season, int episode) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        try {
+            String url = BASE_URL
+                    + "/tv/" + seriesId
+                    + "/season/" + season
+                    + "/episode/" + episode
+                    + "?api_key=" + apiKey
+                    + "&language=" + language;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(15))
+                    .GET()
+                    .build();
+
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(response -> parseEpisodeResponse(response.body(), season, episode))
+                    .exceptionally(ex -> null);
+
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private EpisodeMatch parseEpisodeResponse(String body, int season, int episode) {
+        try {
+            JSONObject obj = new JSONObject(body);
+            String name = obj.optString("name", "");
+            String overview = obj.optString("overview", "");
+            int epNum = obj.optInt("episode_number", episode);
+            int seNum = obj.optInt("season_number", season);
+            return new EpisodeMatch(seNum, epNum, name, overview);
+        } catch (Exception e) {
+            System.err.println("[TmdbClient] Failed to parse episode response: " + e.getMessage());
+            return null;
+        }
     }
 }

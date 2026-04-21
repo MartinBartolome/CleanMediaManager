@@ -7,14 +7,20 @@ public class MediaFile {
     private String originalName;
     private String newName;
     private MatchStatus status;
+    private MediaType mediaType;
     private MovieMatch match;
+    private SeriesMatch seriesMatch;
+    private EpisodeMatch episodeMatch;
 
     public MediaFile(Path path) {
         this.path = path;
         this.originalName = path.getFileName().toString();
         this.newName = null;
         this.status = MatchStatus.PENDING;
+        this.mediaType = MediaType.MOVIE;
         this.match = null;
+        this.seriesMatch = null;
+        this.episodeMatch = null;
     }
 
     public Path getPath() { return path; }
@@ -24,6 +30,12 @@ public class MediaFile {
     public void setNewName(String newName) { this.newName = newName; }
     public MatchStatus getStatus() { return status; }
     public void setStatus(MatchStatus status) { this.status = status; }
+    public MediaType getMediaType() { return mediaType; }
+    public void setMediaType(MediaType mediaType) { this.mediaType = mediaType; }
     public MovieMatch getMatch() { return match; }
     public void setMatch(MovieMatch match) { this.match = match; }
+    public SeriesMatch getSeriesMatch() { return seriesMatch; }
+    public void setSeriesMatch(SeriesMatch seriesMatch) { this.seriesMatch = seriesMatch; }
+    public EpisodeMatch getEpisodeMatch() { return episodeMatch; }
+    public void setEpisodeMatch(EpisodeMatch episodeMatch) { this.episodeMatch = episodeMatch; }
 }

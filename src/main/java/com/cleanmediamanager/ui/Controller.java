@@ -4,7 +4,9 @@ import com.cleanmediamanager.api.TmdbClient;
 import com.cleanmediamanager.core.FileScanner;
 import com.cleanmediamanager.core.MovieMatcher;
 import com.cleanmediamanager.core.RenameService;
+import com.cleanmediamanager.core.SeriesMatcher;
 import com.cleanmediamanager.model.MediaFile;
+import com.cleanmediamanager.model.MediaType;
 
 import javax.swing.*;
 import java.awt.*;
@@ -26,6 +28,7 @@ public class Controller {
 
     private List<MediaFile> mediaFiles = new ArrayList<>();
     private FileTableView tableView;
+    private MediaType currentMode = MediaType.MOVIE;
 
     public Controller(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
@@ -95,39 +98,71 @@ public class Controller {
 
         String language = prefs.get(PREF_LANGUAGE, "en-US");
         TmdbClient client = new TmdbClient(apiKey, language);
-        MovieMatcher matcher = new MovieMatcher(client);
 
         log("[INFO] Starting matching for " + mediaFiles.size() + " file(s)...");
         mainWindow.setMatchButtonEnabled(false);
 
-        SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
-            @Override
-            protected Void doInBackground() throws Exception {
-                matcher.matchFiles(mediaFiles, file -> publish(file)).get();
-                return null;
-            }
+        if (currentMode == MediaType.EPISODE) {
+            SeriesMatcher matcher = new SeriesMatcher(client);
+            SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    matcher.matchFiles(mediaFiles, file -> publish(file)).get();
+                    return null;
+                }
 
-            @Override
-            protected void process(List<MediaFile> chunks) {
-                tableView.getLeftModel().refresh();
-                tableView.getRightModel().refresh();
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    get();
-                    log("[INFO] Matching complete.");
-                } catch (Exception e) {
-                    log("[ERROR] Matching failed: " + e.getMessage());
-                } finally {
-                    mainWindow.setMatchButtonEnabled(true);
+                @Override
+                protected void process(List<MediaFile> chunks) {
                     tableView.getLeftModel().refresh();
                     tableView.getRightModel().refresh();
                 }
-            }
-        };
-        worker.execute();
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        log("[INFO] Matching complete.");
+                    } catch (Exception e) {
+                        log("[ERROR] Matching failed: " + e.getMessage());
+                    } finally {
+                        mainWindow.setMatchButtonEnabled(true);
+                        tableView.getLeftModel().refresh();
+                        tableView.getRightModel().refresh();
+                    }
+                }
+            };
+            worker.execute();
+        } else {
+            MovieMatcher matcher = new MovieMatcher(client);
+            SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    matcher.matchFiles(mediaFiles, file -> publish(file)).get();
+                    return null;
+                }
+
+                @Override
+                protected void process(List<MediaFile> chunks) {
+                    tableView.getLeftModel().refresh();
+                    tableView.getRightModel().refresh();
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        log("[INFO] Matching complete.");
+                    } catch (Exception e) {
+                        log("[ERROR] Matching failed: " + e.getMessage());
+                    } finally {
+                        mainWindow.setMatchButtonEnabled(true);
+                        tableView.getLeftModel().refresh();
+                        tableView.getRightModel().refresh();
+                    }
+                }
+            };
+            worker.execute();
+        }
     }
 
     public void onRenameButtonClicked() {
@@ -209,6 +244,11 @@ public class Controller {
 
     public void onLanguageChanged(String language) {
         prefs.put(PREF_LANGUAGE, language);
+    }
+
+    public void onModeChanged(String mode) {
+        currentMode = "Series".equals(mode) ? MediaType.EPISODE : MediaType.MOVIE;
+        log("[INFO] Mode changed to: " + mode);
     }
 
     public void clearFiles() {

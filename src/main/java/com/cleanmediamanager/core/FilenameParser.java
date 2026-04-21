@@ -47,6 +47,16 @@ public class FilenameParser {
             "[\\s\\-_,;:!?.]+$"
     );
 
+    // S01E02 or S01E02E03 (multi-episode, captures first episode number)
+    private static final Pattern EPISODE_PATTERN_SXX = Pattern.compile(
+            "(?i)S(\\d{1,2})E(\\d{1,3})(?:E\\d{1,3})*"
+    );
+
+    // 1x02 style
+    private static final Pattern EPISODE_PATTERN_NXN = Pattern.compile(
+            "(?<![\\d.])([1-9]\\d?)x(\\d{2,3})(?!\\d)"
+    );
+
     public static class ParseResult {
         private final String title;
         private final String year;
@@ -58,6 +68,21 @@ public class FilenameParser {
 
         public String getTitle() { return title; }
         public String getYear() { return year; }
+    }
+
+    public static class EpisodeParseResult extends ParseResult {
+        private final int season;
+        private final int episode;
+
+        public EpisodeParseResult(String title, String year, int season, int episode) {
+            super(title, year);
+            this.season = season;
+            this.episode = episode;
+        }
+
+        public int getSeason() { return season; }
+        public int getEpisode() { return episode; }
+        public boolean hasEpisodeInfo() { return season > 0 && episode > 0; }
     }
 
     public ParseResult parse(String filename) {
@@ -124,5 +149,43 @@ public class FilenameParser {
             return filename.substring(0, dotIdx);
         }
         return filename;
+    }
+
+    /**
+     * Parses a series episode filename and extracts the series title, season and
+     * episode number.  Recognises the common patterns S01E02 and 1x02.
+     * Falls back to season/episode = 0 when no pattern is found.
+     */
+    public EpisodeParseResult parseEpisode(String filename) {
+        String name = removeExtension(filename);
+        name = name.replace('.', ' ').replace('_', ' ');
+
+        int season = 0;
+        int episode = 0;
+        String titlePart;
+
+        // Try SxxExx first (most common)
+        Matcher m = EPISODE_PATTERN_SXX.matcher(name);
+        if (m.find()) {
+            season = Integer.parseInt(m.group(1));
+            episode = Integer.parseInt(m.group(2));
+            titlePart = name.substring(0, m.start());
+        } else {
+            // Try NxNN style
+            Matcher m2 = EPISODE_PATTERN_NXN.matcher(name);
+            if (m2.find()) {
+                season = Integer.parseInt(m2.group(1));
+                episode = Integer.parseInt(m2.group(2));
+                titlePart = name.substring(0, m2.start());
+            } else {
+                titlePart = substringBefore(name);
+            }
+        }
+
+        String title = cleanTitle(titlePart);
+        if (title.isEmpty()) {
+            title = removeExtension(filename);
+        }
+        return new EpisodeParseResult(title, null, season, episode);
     }
 }

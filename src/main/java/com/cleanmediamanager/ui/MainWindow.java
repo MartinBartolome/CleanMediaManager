@@ -120,6 +120,12 @@ public class MainWindow {
         toolBar.add(settingsButton);
         toolBar.addSeparator();
 
+        toolBar.add(new JLabel("  Mode: "));
+        JComboBox<String> modeCombo = new JComboBox<>(new String[]{"Movie", "Series"});
+        modeCombo.setMaximumSize(new Dimension(100, 28));
+        modeCombo.addActionListener(e -> controller.onModeChanged((String) modeCombo.getSelectedItem()));
+        toolBar.add(modeCombo);
+
         toolBar.add(new JLabel("  DB: "));
         JComboBox<String> dbCombo = new JComboBox<>(new String[]{"TheMovieDB"});
         dbCombo.setMaximumSize(new Dimension(140, 28));
