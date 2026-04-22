@@ -11,7 +11,7 @@ public class FormatService {
         if (match == null) {
             return null;
         }
-        String title = match.getTitle();
+        String title = sanitizeFilename(match.getTitle());
         String year = match.getYear();
         String ext = getExtension(file.getOriginalName());
 
@@ -36,14 +36,36 @@ public class FormatService {
      */
     public String formatEpisode(MediaFile file, SeriesMatch series, EpisodeMatch episode) {
         String ext = getExtension(file.getOriginalName());
-        String seriesName = series.getName();
+        String seriesName = sanitizeFilename(series.getName());
         String seEp = String.format("S%02dE%02d", episode.getSeason(), episode.getEpisodeNumber());
-        String epName = episode.getName();
+        String epName = sanitizeFilename(episode.getName());
 
         if (epName != null && !epName.isBlank()) {
             return seriesName + " - " + seEp + " - " + epName + ext;
         } else {
             return seriesName + " - " + seEp + ext;
         }
+    }
+
+    /**
+     * Removes or replaces characters that are forbidden in filenames on common
+     * operating systems (Windows, Linux, macOS).
+     * <ul>
+     *   <li>{@code :} is replaced with {@code  -} (common convention for media titles)</li>
+     *   <li>{@code \ / * ? " < > |} are removed</li>
+     *   <li>ASCII control characters (0x00–0x1F, 0x7F) are removed</li>
+     *   <li>Multiple consecutive spaces are collapsed to one</li>
+     *   <li>Leading/trailing spaces and dots are trimmed</li>
+     * </ul>
+     */
+    public String sanitizeFilename(String name) {
+        if (name == null) return null;
+        String s = name.replace(":", " -");
+        s = s.replaceAll("[\\\\/*?\"<>|]", "");
+        s = s.replaceAll("[\\x00-\\x1F\\x7F]", "");
+        s = s.replaceAll(" {2,}", " ");
+        s = s.strip();
+        s = s.replaceAll("^[.]+|[.]+$", "");
+        return s;
     }
 }
