@@ -73,4 +73,48 @@ public class SeriesMatcher {
                     return null;
                 });
     }
+
+    /**
+     * Re-matches a list of files against a user-supplied {@link SeriesMatch}.
+     * Skips the TMDB series search and goes straight to fetching episode details.
+     */
+    public CompletableFuture<Void> matchFilesWithSeries(List<MediaFile> files,
+            SeriesMatch series, Consumer<MediaFile> onFileUpdated) {
+        CompletableFuture<?>[] futures = files.stream()
+                .map(file -> matchFileWithSeries(file, series, onFileUpdated))
+                .toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(futures);
+    }
+
+    private CompletableFuture<Void> matchFileWithSeries(MediaFile file,
+            SeriesMatch series, Consumer<MediaFile> onFileUpdated) {
+        file.setMediaType(MediaType.EPISODE);
+
+        FilenameParser.EpisodeParseResult parsed = parser.parseEpisode(file.getOriginalName());
+        int season = parsed.getSeason();
+        int episode = parsed.getEpisode();
+
+        if (!parsed.hasEpisodeInfo()) {
+            file.setStatus(MatchStatus.UNMATCHED);
+            if (onFileUpdated != null) onFileUpdated.accept(file);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        file.setSeriesMatch(series);
+        return tmdbClient.getEpisodeDetails(series.getId(), season, episode)
+                .thenAccept(episodeMatch -> {
+                    if (episodeMatch == null) {
+                        episodeMatch = new EpisodeMatch(season, episode, "", "");
+                    }
+                    file.setEpisodeMatch(episodeMatch);
+                    file.setStatus(MatchStatus.MATCHED);
+                    file.setNewName(formatService.formatEpisode(file, series, episodeMatch));
+                    if (onFileUpdated != null) onFileUpdated.accept(file);
+                })
+                .exceptionally(ex -> {
+                    file.setStatus(MatchStatus.ERROR);
+                    if (onFileUpdated != null) onFileUpdated.accept(file);
+                    return null;
+                });
+    }
 }

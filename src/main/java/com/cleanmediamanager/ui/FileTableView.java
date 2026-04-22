@@ -21,9 +21,14 @@ public class FileTableView {
     private final FileTableModel rightModel;
     private final JSplitPane splitPane;
     private Consumer<Integer> onRemoveRow;
+    private Consumer<MediaFile> onManualSearch;
 
     public void setOnRemoveRow(Consumer<Integer> onRemoveRow) {
         this.onRemoveRow = onRemoveRow;
+    }
+
+    public void setOnManualSearch(Consumer<MediaFile> onManualSearch) {
+        this.onManualSearch = onManualSearch;
     }
 
     public FileTableView(Consumer<List<File>> onFilesDropped) {
@@ -179,6 +184,16 @@ public class FileTableView {
                                 .setContents(new StringSelection(
                                         file.getPath().toAbsolutePath().toString()), null));
                 menu.add(copyPath);
+
+                // --- Manual search for unmatched files (series mode) ---
+                if (file.getStatus() == MatchStatus.UNMATCHED || file.getStatus() == MatchStatus.ERROR) {
+                    JMenuItem manualSearch = new JMenuItem("🔍 Manuell suchen…");
+                    manualSearch.addActionListener(ae -> {
+                        if (onManualSearch != null) onManualSearch.accept(file);
+                    });
+                    menu.add(manualSearch);
+                    menu.addSeparator();
+                }
 
                 menu.addSeparator();
 

@@ -88,4 +88,50 @@ public class FilenameParserTest {
         assertEquals("Fight Club", result.getTitle());
         assertEquals("1999", result.getYear());
     }
+
+    // --- Absolute / zero-padded episode number ---
+
+    @Test
+    public void testAbsoluteEpisodeZeroPadded3Digits() {
+        // "DB 001 - Title" → series title "DB", season 1, episode 1
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("DB 001 - Das Geheimnis der Dragonballs.avi");
+        assertEquals("DB", r.getTitle());
+        assertEquals(1, r.getSeason());
+        assertEquals(1, r.getEpisode());
+        assertTrue(r.hasEpisodeInfo());
+    }
+
+    @Test
+    public void testAbsoluteEpisodeZeroPadded2Digits() {
+        // "Show 01 - Title" → season 1, episode 1
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("MyShow 01 - Episode Title.mkv");
+        assertEquals("MyShow", r.getTitle());
+        assertEquals(1, r.getSeason());
+        assertEquals(1, r.getEpisode());
+    }
+
+    @Test
+    public void testAbsoluteEpisode3DigitsNoLeadingZero() {
+        // "Series 123 - Title" → season 1, episode 123
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("Series 123 - Episode Title.mkv");
+        assertEquals("Series", r.getTitle());
+        assertEquals(1, r.getSeason());
+        assertEquals(123, r.getEpisode());
+    }
+
+    @Test
+    public void testStandardSxxExxNotAffected() {
+        // Standard S01E05 must still take priority
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("Breaking Bad S01E05 720p.mkv");
+        assertEquals(1, r.getSeason());
+        assertEquals(5, r.getEpisode());
+    }
+
+    @Test
+    public void testYearNotMistakenForEpisode() {
+        // 4-digit years must not be matched as episode numbers
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("Series 1999 Episode.mkv");
+        assertEquals(0, r.getSeason());
+        assertEquals(0, r.getEpisode());
+    }
 }

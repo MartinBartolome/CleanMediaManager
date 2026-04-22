@@ -57,6 +57,14 @@ public class FilenameParser {
             "(?<![\\d.])([1-9]\\d?)x(\\d{2,3})(?!\\d)"
     );
 
+    // Absolute episode number: zero-padded (01, 001, 0042) or exactly 3 digits (100..999).
+    // Must be preceded and followed by a word separator or string boundary so that
+    // 4-digit years and numbers embedded in titles are not captured.
+    // Assumes season 1 when matched.
+    private static final Pattern EPISODE_PATTERN_ABS = Pattern.compile(
+            "(?<=[\\s\\-_])(0\\d{1,3}|[1-9]\\d{2})(?=[\\s\\-_]|$)"
+    );
+
     public static class ParseResult {
         private final String title;
         private final String year;
@@ -178,7 +186,15 @@ public class FilenameParser {
                 episode = Integer.parseInt(m2.group(2));
                 titlePart = name.substring(0, m2.start());
             } else {
-                titlePart = substringBefore(name);
+                // Try absolute episode number (zero-padded or 3-digit)
+                Matcher m3 = EPISODE_PATTERN_ABS.matcher(name);
+                if (m3.find()) {
+                    season = 1;
+                    episode = Integer.parseInt(m3.group(1));
+                    titlePart = name.substring(0, m3.start());
+                } else {
+                    titlePart = substringBefore(name);
+                }
             }
         }
 

@@ -2,11 +2,14 @@ package com.cleanmediamanager.ui;
 
 import com.cleanmediamanager.api.TmdbClient;
 import com.cleanmediamanager.core.FileScanner;
+import com.cleanmediamanager.core.FilenameParser;
 import com.cleanmediamanager.core.MovieMatcher;
 import com.cleanmediamanager.core.RenameService;
 import com.cleanmediamanager.core.SeriesMatcher;
+import com.cleanmediamanager.model.MatchStatus;
 import com.cleanmediamanager.model.MediaFile;
 import com.cleanmediamanager.model.MediaType;
+import com.cleanmediamanager.model.SeriesMatch;
 
 import javax.swing.*;
 import java.awt.*;
@@ -20,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 
 public class Controller {
 
@@ -44,6 +48,7 @@ public class Controller {
 
     public void setTableView(FileTableView tableView) {
         this.tableView = tableView;
+        tableView.setOnManualSearch(this::handleManualSearch);
     }
 
     public void onLoadButtonClicked() {
@@ -368,6 +373,76 @@ public class Controller {
     private void refreshTables() {
         tableView.getLeftModel().setFiles(mediaFiles);
         tableView.getRightModel().setFiles(mediaFiles);
+    }
+
+    /**
+     * Opens the {@link ManualSearchDialog} for an unmatched file, then re-matches
+     * all files that share the same parsed title (i.e. the same series group)
+     * against the user-selected {@link SeriesMatch}.
+     */
+    public void handleManualSearch(MediaFile triggerFile) {
+        String apiKey = prefs.get(PREF_API_KEY, "");
+        if (apiKey.isBlank()) {
+            log("[WARN] TMDB API key nicht konfiguriert. Bitte zuerst Einstellungen öffnen.");
+            int choice = JOptionPane.showConfirmDialog(mainWindow.getFrame(),
+                    "TMDB API Key nicht konfiguriert.\nEinstellungen jetzt öffnen?",
+                    "API Key erforderlich", JOptionPane.YES_NO_OPTION);
+            if (choice == JOptionPane.YES_OPTION) onSettingsButtonClicked();
+            return;
+        }
+
+        // Determine the series group: all UNMATCHED/ERROR files with the same parsed title
+        FilenameParser parser = new FilenameParser();
+        String groupTitle = parser.parseEpisode(triggerFile.getOriginalName()).getTitle();
+
+        List<MediaFile> group = mediaFiles.stream()
+                .filter(f -> f.getStatus() == MatchStatus.UNMATCHED
+                          || f.getStatus() == MatchStatus.ERROR)
+                .filter(f -> parser.parseEpisode(f.getOriginalName()).getTitle()
+                                   .equalsIgnoreCase(groupTitle))
+                .collect(Collectors.toList());
+
+        String language = prefs.get(PREF_LANGUAGE, "en-US");
+        TmdbClient client = new TmdbClient(apiKey, language);
+
+        ManualSearchDialog dialog = new ManualSearchDialog(
+                mainWindow.getFrame(), client, groupTitle);
+        SeriesMatch selected = dialog.showAndWait();
+        if (selected == null) return; // user cancelled
+
+        log("[INFO] Manuelles Matching: '" + selected.getName()
+                + "' wird auf " + group.size() + " Datei(en) angewendet…");
+        mainWindow.setMatchButtonEnabled(false);
+
+        SeriesMatcher matcher = new SeriesMatcher(client);
+        SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                matcher.matchFilesWithSeries(group, selected, f -> publish(f)).get();
+                return null;
+            }
+
+            @Override
+            protected void process(List<MediaFile> chunks) {
+                tableView.getLeftModel().refresh();
+                tableView.getRightModel().refresh();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    log("[INFO] Manuelles Matching abgeschlossen.");
+                } catch (Exception e) {
+                    log("[ERROR] Matching fehlgeschlagen: " + e.getMessage());
+                } finally {
+                    mainWindow.setMatchButtonEnabled(true);
+                    tableView.getLeftModel().refresh();
+                    tableView.getRightModel().refresh();
+                }
+            }
+        };
+        worker.execute();
     }
 
     public void log(String message) {
