@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.prefs.Preferences;
@@ -101,6 +102,7 @@ public class Controller {
         }
 
         mediaFiles.addAll(loaded);
+        mediaFiles.sort(Comparator.comparing(MediaFile::getOriginalName, String.CASE_INSENSITIVE_ORDER));
         refreshTables();
         log("[INFO] Loaded " + loaded.size() + " media file(s). Total: " + mediaFiles.size());
     }
