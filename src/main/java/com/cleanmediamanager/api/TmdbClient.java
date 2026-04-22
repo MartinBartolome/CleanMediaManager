@@ -15,15 +15,21 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 
 public class TmdbClient {
 
     private static final String BASE_URL = "https://api.themoviedb.org/3";
+    // TMDB allows ~40 requests/10 s; keep concurrent requests well below that.
+    private static final int MAX_CONCURRENT = 8;
     private final String apiKey;
     private final String language;
     private final HttpClient httpClient;
+    private final Semaphore semaphore = new Semaphore(MAX_CONCURRENT, true);
 
     public TmdbClient(String apiKey, String language) {
         this.apiKey = apiKey;
@@ -31,6 +37,24 @@ public class TmdbClient {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
+    }
+
+    /** Sends a throttled GET request, respecting the concurrency limit. */
+    private CompletableFuture<String> throttledGet(String url) {
+        try {
+            semaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return CompletableFuture.failedFuture(e);
+        }
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build();
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(HttpResponse::body)
+                .whenComplete((body, ex) -> semaphore.release());
     }
 
     public CompletableFuture<List<MovieMatch>> searchMovie(String title, String year) {
@@ -50,14 +74,8 @@ public class TmdbClient {
                 url.append("&year=").append(year);
             }
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url.toString()))
-                    .timeout(Duration.ofSeconds(15))
-                    .GET()
-                    .build();
-
-            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenApply(response -> parseResponse(response.body()))
+            return throttledGet(url.toString())
+                    .thenApply(body -> parseResponse(body))
                     .exceptionally(ex -> Collections.emptyList());
 
         } catch (Exception e) {
@@ -104,14 +122,8 @@ public class TmdbClient {
                 url.append("&first_air_date_year=").append(year);
             }
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url.toString()))
-                    .timeout(Duration.ofSeconds(15))
-                    .GET()
-                    .build();
-
-            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenApply(response -> parseSeriesResponse(response.body()))
+            return throttledGet(url.toString())
+                    .thenApply(body -> parseSeriesResponse(body))
                     .exceptionally(ex -> Collections.emptyList());
 
         } catch (Exception e) {
@@ -141,45 +153,44 @@ public class TmdbClient {
         return results;
     }
 
-    public CompletableFuture<EpisodeMatch> getEpisodeDetails(int seriesId, int season, int episode) {
+    public CompletableFuture<Map<Integer, EpisodeMatch>> getSeasonEpisodes(int seriesId, int season) {
         if (apiKey == null || apiKey.isBlank()) {
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
         try {
             String url = BASE_URL
                     + "/tv/" + seriesId
                     + "/season/" + season
-                    + "/episode/" + episode
                     + "?api_key=" + apiKey
                     + "&language=" + language;
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(15))
-                    .GET()
-                    .build();
-
-            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenApply(response -> parseEpisodeResponse(response.body(), season, episode))
-                    .exceptionally(ex -> null);
+            return throttledGet(url)
+                    .thenApply(body -> parseSeasonResponse(body))
+                    .exceptionally(ex -> Collections.emptyMap());
 
         } catch (Exception e) {
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(Collections.emptyMap());
         }
     }
 
-    private EpisodeMatch parseEpisodeResponse(String body, int season, int episode) {
+    private Map<Integer, EpisodeMatch> parseSeasonResponse(String body) {
+        Map<Integer, EpisodeMatch> result = new LinkedHashMap<>();
         try {
-            JSONObject obj = new JSONObject(body);
-            String name = obj.optString("name", "");
-            String overview = obj.optString("overview", "");
-            int epNum = obj.optInt("episode_number", episode);
-            int seNum = obj.optInt("season_number", season);
-            return new EpisodeMatch(seNum, epNum, name, overview);
+            JSONObject json = new JSONObject(body);
+            JSONArray episodes = json.optJSONArray("episodes");
+            if (episodes == null) return result;
+            for (int i = 0; i < episodes.length(); i++) {
+                JSONObject ep = episodes.getJSONObject(i);
+                int epNum = ep.optInt("episode_number", 0);
+                int seNum = ep.optInt("season_number", 0);
+                String name = ep.optString("name", "");
+                String overview = ep.optString("overview", "");
+                result.put(epNum, new EpisodeMatch(seNum, epNum, name, overview));
+            }
         } catch (Exception e) {
-            System.err.println("[TmdbClient] Failed to parse episode response: " + e.getMessage());
-            return null;
+            System.err.println("[TmdbClient] Failed to parse season response: " + e.getMessage());
         }
+        return result;
     }
 }
