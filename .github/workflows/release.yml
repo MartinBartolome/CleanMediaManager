@@ -51,6 +51,14 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT_VERSION"
 
+      - name: Set release version in AppInfo.java
+        shell: bash
+        run: |
+          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          sed -i "s/VERSION = \"[^\"]*\"/VERSION = \"${TAG_VERSION}\"/" \
+            src/main/java/com/cleanmediamanager/AppInfo.java
+
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
@@ -195,9 +203,16 @@ jobs:
         run: |
           mvn versions:set -DnewVersion=${{ steps.new_version.outputs.new_version }} -DgenerateBackupPoms=false
 
+      - name: Set release version in AppInfo.java (committed)
+        run: |
+          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          sed -i "s/VERSION = \"[^\"]*\"/VERSION = \"${TAG_VERSION}\"/" \
+            src/main/java/com/cleanmediamanager/AppInfo.java
+
       - name: Commit version bump
         run: |
-          git add pom.xml
+          git add pom.xml src/main/java/com/cleanmediamanager/AppInfo.java
           git commit -m "Bump version to ${{ steps.new_version.outputs.new_version }} after ${{ inputs.version_bump }} release"
           git push
 

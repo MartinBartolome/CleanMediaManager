@@ -1,10 +1,16 @@
 package com.cleanmediamanager.ui;
 
+import com.cleanmediamanager.AppInfo;
+import com.cleanmediamanager.core.AutoUpdater;
+import com.cleanmediamanager.core.UpdateChecker;
+import com.cleanmediamanager.core.UpdateChecker.UpdateInfo;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.List;
+import java.util.Optional;
 import java.util.prefs.Preferences;
 
 public class MainWindow {
@@ -53,6 +59,7 @@ public class MainWindow {
         frame.setVisible(true);
 
         appendLog("[INFO] CleanMediaManager started. Use Load to add media files.");
+        checkForUpdatesAsync();
     }
 
     private JMenuBar buildMenuBar() {
@@ -89,10 +96,14 @@ public class MainWindow {
 
         JMenuItem aboutItem = new JMenuItem("About");
         aboutItem.addActionListener(e -> JOptionPane.showMessageDialog(frame,
-                "CleanMediaManager v1.0\n\nA FileBot-like media renaming tool.\nPowered by TheMovieDB API.",
+                "CleanMediaManager v" + AppInfo.VERSION + "\n\nA FileBot-like media renaming tool.\nPowered by TheMovieDB API.",
                 "About", JOptionPane.INFORMATION_MESSAGE));
 
+        JMenuItem checkUpdateItem = new JMenuItem("Check for Updates…");
+        checkUpdateItem.addActionListener(e -> checkForUpdatesAsync());
+
         helpMenu.add(aboutItem);
+        helpMenu.add(checkUpdateItem);
 
         menuBar.add(fileMenu);
         menuBar.add(helpMenu);
@@ -166,6 +177,46 @@ public class MainWindow {
         SwingUtilities.invokeLater(() -> {
             logArea.append(message + "\n");
             logArea.setCaretPosition(logArea.getDocument().getLength());
+        });
+    }
+
+    private void checkForUpdatesAsync() {
+        appendLog("[INFO] Checking for updates…");
+        Thread.ofVirtual().start(() -> {
+            Optional<UpdateInfo> update = new UpdateChecker().checkForUpdate();
+            SwingUtilities.invokeLater(() -> {
+                if (update.isEmpty()) {
+                    appendLog("[INFO] No updates available. You are running the latest version (" + AppInfo.VERSION + ").");
+                    return;
+                }
+                UpdateInfo info = update.get();
+                appendLog("[INFO] New version available: " + info.version());
+                int choice = JOptionPane.showOptionDialog(
+                        frame,
+                        "<html><b>A new version of CleanMediaManager is available!</b><br><br>"
+                                + "Current version: <b>" + AppInfo.VERSION + "</b><br>"
+                                + "New version:&nbsp;&nbsp;&nbsp;&nbsp; <b>" + info.version() + "</b><br><br>"
+                                + "Do you want to download and install the update now?</html>",
+                        "Update Available",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.INFORMATION_MESSAGE,
+                        null,
+                        new String[]{"Yes, update now", "No, later"},
+                        "Yes, update now"
+                );
+                if (choice == JOptionPane.YES_OPTION) {
+                    appendLog("[INFO] Starting download of " + info.assetName() + " …");
+                    new AutoUpdater().downloadAndInstall(
+                            info.downloadUrl(),
+                            info.assetName(),
+                            msg -> SwingUtilities.invokeLater(() -> appendLog("[INFO] " + msg)),
+                            err -> SwingUtilities.invokeLater(() -> {
+                                appendLog("[ERROR] " + err);
+                                JOptionPane.showMessageDialog(frame, err, "Update Error", JOptionPane.ERROR_MESSAGE);
+                            })
+                    );
+                }
+            });
         });
     }
 
