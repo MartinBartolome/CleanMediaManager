@@ -185,15 +185,14 @@ public class FileTableView {
                                         file.getPath().toAbsolutePath().toString()), null));
                 menu.add(copyPath);
 
-                // --- Manual search for unmatched files (series mode) ---
-                if (file.getStatus() == MatchStatus.UNMATCHED || file.getStatus() == MatchStatus.ERROR) {
-                    JMenuItem manualSearch = new JMenuItem("🔍 Manuell suchen…");
-                    manualSearch.addActionListener(ae -> {
-                        if (onManualSearch != null) onManualSearch.accept(file);
-                    });
-                    menu.add(manualSearch);
-                    menu.addSeparator();
-                }
+                menu.addSeparator();
+
+                // --- Manual search (always available) ---
+                JMenuItem manualSearch = new JMenuItem("\uD83D\uDD0D Manuell suchen\u2026");
+                manualSearch.addActionListener(ae -> {
+                    if (onManualSearch != null) onManualSearch.accept(file);
+                });
+                menu.add(manualSearch);
 
                 menu.addSeparator();
 

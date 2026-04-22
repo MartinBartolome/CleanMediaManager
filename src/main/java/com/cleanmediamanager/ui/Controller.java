@@ -393,13 +393,11 @@ public class Controller {
             return;
         }
 
-        // Determine the series group: all UNMATCHED/ERROR files with the same parsed title
+        // Determine the series group: all files with the same parsed title (any status)
         FilenameParser parser = new FilenameParser();
         String groupTitle = parser.parseEpisode(triggerFile.getOriginalName()).getTitle();
 
         List<MediaFile> group = mediaFiles.stream()
-                .filter(f -> f.getStatus() == MatchStatus.UNMATCHED
-                          || f.getStatus() == MatchStatus.ERROR)
                 .filter(f -> parser.parseEpisode(f.getOriginalName()).getTitle()
                                    .equalsIgnoreCase(groupTitle))
                 .collect(Collectors.toList());
