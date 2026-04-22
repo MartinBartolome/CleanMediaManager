@@ -43,6 +43,11 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Create Git Tag
         run: |
           RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
@@ -101,8 +106,6 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pom.xml
           git commit -m "Bump version to ${{ steps.new_version.outputs.new_version }} after ${{ inputs.version_bump }} release"
           git push
