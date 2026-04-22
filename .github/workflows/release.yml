@@ -43,12 +43,24 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Upload Release Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: clean-media-manager-${{ steps.get_version.outputs.current_version }}
-          path: target/*.jar
-          retention-days: 90
+      - name: Create Git Tag
+        run: |
+          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
+          # Remove -SNAPSHOT suffix for release tag
+          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          git tag -a "v${TAG_VERSION}" -m "Release version ${TAG_VERSION}"
+          git push origin "v${TAG_VERSION}"
+
+      - name: Create GitHub Release
+        run: |
+          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          gh release create "v${TAG_VERSION}" \
+            target/*.jar \
+            --title "Release v${TAG_VERSION}" \
+            --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Calculate new version
         id: new_version
@@ -97,10 +109,12 @@ jobs:
 
       - name: Create Release Summary
         run: |
+          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
           echo "## Release Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Built Version**: ${{ steps.get_version.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **New Version**: ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Released Version**: v${TAG_VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Development Version**: ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Version Bump Type**: ${{ inputs.version_bump }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The build artifact has been uploaded and is available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "The release has been created and is available at: https://github.com/${{ github.repository }}/releases/tag/v${TAG_VERSION}" >> $GITHUB_STEP_SUMMARY
