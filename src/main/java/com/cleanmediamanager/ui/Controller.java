@@ -78,6 +78,23 @@ public class Controller {
             return;
         }
 
+        if (!mediaFiles.isEmpty()) {
+            int choice = JOptionPane.showConfirmDialog(mainWindow.getFrame(),
+                    "Es sind bereits " + mediaFiles.size() + " Datei(en) geladen.\n" +
+                    "Sollen die vorherigen Ergebnisse gelöscht werden?",
+                    "Vorherige Ergebnisse löschen?",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+            if (choice == JOptionPane.CANCEL_OPTION || choice == JOptionPane.CLOSED_OPTION) {
+                log("[INFO] Laden abgebrochen.");
+                return;
+            }
+            if (choice == JOptionPane.YES_OPTION) {
+                mediaFiles.clear();
+                log("[INFO] Vorherige Ergebnisse gelöscht.");
+            }
+        }
+
         mediaFiles.addAll(loaded);
         refreshTables();
         log("[INFO] Loaded " + loaded.size() + " media file(s). Total: " + mediaFiles.size());
