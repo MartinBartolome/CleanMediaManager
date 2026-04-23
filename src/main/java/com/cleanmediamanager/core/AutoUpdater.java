@@ -61,15 +61,27 @@ public class AutoUpdater {
                 // Non-fatal; the Desktop API or package manager will handle it
             }
 
+            boolean opened = false;
             if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().open(file);
-            } else {
-                // Fallback: try xdg-open (Linux)
-                new ProcessBuilder("xdg-open", tempFile.toString()).start();
+                try {
+                    Desktop.getDesktop().open(file);
+                    opened = true;
+                } catch (Exception ignored) {
+                    // Fall through to xdg-open
+                }
+            }
+            if (!opened) {
+                // Use setsid so the child process is detached from the JVM and
+                // survives System.exit(). This also allows GUI package managers
+                // (e.g. GDebi, GNOME Software) to prompt for sudo independently.
+                ProcessBuilder pb = new ProcessBuilder("setsid", "xdg-open", tempFile.toString());
+                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+                pb.start();
             }
 
             // Give the OS a moment to pick up the file, then exit
-            Thread.sleep(1500);
+            Thread.sleep(2500);
             System.exit(0);
 
         } catch (Exception e) {
