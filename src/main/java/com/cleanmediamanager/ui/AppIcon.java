@@ -10,8 +10,7 @@ import java.util.List;
 
 public final class AppIcon {
 
-    /** Sizes used for {@link #getIconImages()} — covers Linux hicolor, Windows, and macOS needs. */
-    public static final int[] ICON_SIZES = {16, 22, 24, 32, 48, 64, 128, 256, 512};
+    private static final int[] ICON_SIZES = {16, 22, 24, 32, 48, 64, 128, 256, 512};
 
     private AppIcon() {}
 
@@ -31,8 +30,7 @@ public final class AppIcon {
         return images;
     }
 
-    /** Renders the icon programmatically at the given pixel size. */
-    public static BufferedImage renderIcon(int size) {
+    private static BufferedImage renderIcon(int size) {
         BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
