@@ -57,3 +57,10 @@ src/main/java/com/cleanmediamanager/
 ├── model/                    # Data models
 └── ui/                       # User interface
 ```
+
+## Application Icon
+
+- **Included asset:** `src/main/resources/icons/app-icon.svg` — a scalable SVG icon used for packaging and documentation.
+- **Runtime icon:** The application draws a programmatic icon by default; see `AppIcon` and `MainWindow` for implementation.
+- **To provide platform icons:** add PNG files of recommended sizes to `src/main/resources/icons/` with names like `app-icon-16.png`, `app-icon-32.png`, `app-icon-64.png`, and `app-icon-256.png`. The application will prefer those resources when present.
+
