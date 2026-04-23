@@ -206,14 +206,16 @@ public class MainWindow {
                 );
                 if (choice == JOptionPane.YES_OPTION) {
                     appendLog("[INFO] Starting download of " + info.assetName() + " …");
-                    new AutoUpdater().downloadAndInstall(
-                            info.downloadUrl(),
-                            info.assetName(),
-                            msg -> SwingUtilities.invokeLater(() -> appendLog("[INFO] " + msg)),
-                            err -> SwingUtilities.invokeLater(() -> {
-                                appendLog("[ERROR] " + err);
-                                JOptionPane.showMessageDialog(frame, err, "Update Error", JOptionPane.ERROR_MESSAGE);
-                            })
+                    Thread.ofVirtual().start(() ->
+                        new AutoUpdater().downloadAndInstall(
+                                info.downloadUrl(),
+                                info.assetName(),
+                                msg -> SwingUtilities.invokeLater(() -> appendLog("[INFO] " + msg)),
+                                err -> SwingUtilities.invokeLater(() -> {
+                                    appendLog("[ERROR] " + err);
+                                    JOptionPane.showMessageDialog(frame, err, "Update Error", JOptionPane.ERROR_MESSAGE);
+                                })
+                        )
                     );
                 }
             });
