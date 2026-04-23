@@ -64,40 +64,55 @@ public class AutoUpdater {
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("linux")) {
                 String deb = tempFile.toString();
+
+                // Write an install script; the .deb path is passed as $1 to avoid shell injection
+                Path scriptPath = Path.of(System.getProperty("java.io.tmpdir"), "cmm_update_install.sh");
+                Files.writeString(scriptPath,
+                        "#!/bin/bash\n" +
+                        "echo '=== CleanMediaManager Update Installer ==='\n" +
+                        "echo ''\n" +
+                        "sudo apt install -y \"$1\"\n" +
+                        "STATUS=$?\n" +
+                        "echo ''\n" +
+                        "if [ $STATUS -eq 0 ]; then\n" +
+                        "  echo 'Done! Please restart CleanMediaManager.'\n" +
+                        "else\n" +
+                        "  echo 'Installation failed. Try manually: sudo apt install \"$1\"'\n" +
+                        "fi\n" +
+                        "read -p 'Press Enter to close...'\n");
+                scriptPath.toFile().setExecutable(true);
+
+                String script = scriptPath.toString();
                 boolean launched = false;
 
-                // Check if gdebi-gtk is installed; if so, use pkexec so the
-                // polkit password dialog appears and the install runs as root.
-                try {
-                    boolean hasGdebi = new ProcessBuilder("which", "gdebi-gtk")
-                            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                            .redirectError(ProcessBuilder.Redirect.DISCARD)
-                            .start().waitFor() == 0;
-                    if (hasGdebi) {
-                        new ProcessBuilder("setsid", "pkexec", "gdebi-gtk", deb)
-                                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                                .redirectError(ProcessBuilder.Redirect.DISCARD)
-                                .start();
-                        launched = true;
-                    }
-                } catch (Exception ignored) {}
+                // Try common terminal emulators; pass deb as argument to avoid injection
+                String[][][] candidates = {
+                    {{"which", "gnome-terminal"}, {"setsid", "gnome-terminal", "--", "bash", script, deb}},
+                    {{"which", "konsole"},        {"setsid", "konsole",        "-e",  "bash", script, deb}},
+                    {{"which", "xterm"},          {"setsid", "xterm",          "-e",  "bash", script, deb}}
+                };
 
-                // Fallback: xdg-open (lets the OS pick the default .deb handler)
-                if (!launched) {
+                for (String[][] pair : candidates) {
                     try {
-                        new ProcessBuilder("setsid", "xdg-open", deb)
+                        boolean available = new ProcessBuilder(pair[0])
                                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                                 .redirectError(ProcessBuilder.Redirect.DISCARD)
-                                .start();
-                        launched = true;
+                                .start().waitFor() == 0;
+                        if (available) {
+                            new ProcessBuilder(pair[1])
+                                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                                    .start();
+                            launched = true;
+                            break;
+                        }
                     } catch (Exception ignored) {}
                 }
 
                 if (launched) {
-                    onProgress.accept("Installer opened. You can now close this application.");
+                    onProgress.accept("A terminal window has opened. Please enter your sudo password to complete the installation, then restart the application.");
                 } else {
-                    onProgress.accept("Installer saved to: " + deb
-                            + "\nPlease install manually: sudo apt install \"" + deb + "\"");
+                    onProgress.accept("Installer saved to: " + deb + "\nRun: sudo apt install \"" + deb + "\"");
                 }
             } else {
                 // Windows / macOS: installer replaces the running JAR, so exit after opening.
