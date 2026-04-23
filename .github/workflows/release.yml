@@ -51,11 +51,30 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT_VERSION"
 
+      - name: Calculate release version
+        id: release_version
+        shell: bash
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.current_version }}"
+          VERSION_BASE=${CURRENT_VERSION%-SNAPSHOT}
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_BASE"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+
+          case "${{ inputs.version_bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) ;;
+          esac
+
+          echo "release_version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+          echo "Release version: ${MAJOR}.${MINOR}.${PATCH}"
+
       - name: Set release version in AppInfo.java
         shell: bash
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
           sed -i "s/VERSION = \"[^\"]*\"/VERSION = \"${TAG_VERSION}\"/" \
             src/main/java/com/cleanmediamanager/AppInfo.java
 
@@ -66,13 +85,13 @@ jobs:
         if: matrix.platform == 'linux'
         shell: bash
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          POM_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
 
           jpackage \
             --input target \
             --name CleanMediaManager \
-            --main-jar clean-media-manager-${RELEASE_VERSION}-uber.jar \
+            --main-jar clean-media-manager-${POM_VERSION}-uber.jar \
             --main-class com.cleanmediamanager.Main \
             --type deb \
             --app-version ${TAG_VERSION} \
@@ -86,13 +105,13 @@ jobs:
         if: matrix.platform == 'windows'
         shell: bash
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          POM_VERSION="${{ steps.get_version.outputs.current_version }}"
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
 
           jpackage \
             --input target \
             --name CleanMediaManager \
-            --main-jar clean-media-manager-${RELEASE_VERSION}-uber.jar \
+            --main-jar clean-media-manager-${POM_VERSION}-uber.jar \
             --main-class com.cleanmediamanager.Main \
             --type exe \
             --app-version ${TAG_VERSION} \
@@ -136,6 +155,25 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT_VERSION"
 
+      - name: Calculate release version
+        id: release_version
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.current_version }}"
+          VERSION_BASE=${CURRENT_VERSION%-SNAPSHOT}
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_BASE"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+
+          case "${{ inputs.version_bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) ;;
+          esac
+
+          echo "release_version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+          echo "Release version: ${MAJOR}.${MINOR}.${PATCH}"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
@@ -148,16 +186,13 @@ jobs:
 
       - name: Create Git Tag
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          # Remove -SNAPSHOT suffix for release tag
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
           git tag -a "v${TAG_VERSION}" -m "Release version ${TAG_VERSION}"
           git push origin "v${TAG_VERSION}"
 
       - name: Create GitHub Release
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
           gh release create "v${TAG_VERSION}" \
             packages/package-linux/* \
             packages/package-windows/* \
@@ -169,31 +204,14 @@ jobs:
       - name: Calculate new version
         id: new_version
         run: |
-          CURRENT_VERSION="${{ steps.get_version.outputs.current_version }}"
-          # Remove -SNAPSHOT suffix if present
-          VERSION_BASE=${CURRENT_VERSION%-SNAPSHOT}
-
-          # Split version into components
-          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_BASE"
+          # Next SNAPSHOT is always patch+1 of the released version
+          RELEASE_VERSION="${{ steps.release_version.outputs.release_version }}"
+          IFS='.' read -ra VERSION_PARTS <<< "$RELEASE_VERSION"
           MAJOR=${VERSION_PARTS[0]:-0}
           MINOR=${VERSION_PARTS[1]:-0}
           PATCH=${VERSION_PARTS[2]:-0}
 
-          # Increment based on input
-          case "${{ inputs.version_bump }}" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
+          PATCH=$((PATCH + 1))
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-SNAPSHOT"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -205,8 +223,7 @@ jobs:
 
       - name: Set release version in AppInfo.java (committed)
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
           sed -i "s/VERSION = \"[^\"]*\"/VERSION = \"${TAG_VERSION}\"/" \
             src/main/java/com/cleanmediamanager/AppInfo.java
 
@@ -218,8 +235,7 @@ jobs:
 
       - name: Create Release Summary
         run: |
-          RELEASE_VERSION="${{ steps.get_version.outputs.current_version }}"
-          TAG_VERSION=${RELEASE_VERSION%-SNAPSHOT}
+          TAG_VERSION="${{ steps.release_version.outputs.release_version }}"
           echo "## Release Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Released Version**: v${TAG_VERSION}" >> $GITHUB_STEP_SUMMARY
