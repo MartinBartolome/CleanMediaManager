@@ -27,7 +27,7 @@ public class MainWindow {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 700);
         frame.setLocationRelativeTo(null);
-        frame.setIconImage(AppIcon.getAppIcon());
+        frame.setIconImages(AppIcon.getIconImages());
 
         controller = new Controller(this);
 

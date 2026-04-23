@@ -60,7 +60,25 @@ src/main/java/com/cleanmediamanager/
 
 ## Application Icon
 
-- **Included asset:** `src/main/resources/icons/app-icon.svg` — a scalable SVG icon used for packaging and documentation.
-- **Runtime icon:** The application draws a programmatic icon by default; see `AppIcon` and `MainWindow` for implementation.
-- **To provide platform icons:** add PNG files of recommended sizes to `src/main/resources/icons/` with names like `app-icon-16.png`, `app-icon-32.png`, `app-icon-64.png`, and `app-icon-256.png`. The application will prefer those resources when present.
+Icons in allen Standardgrößen (16–512 px) sind in `src/main/resources/icons/` enthalten und werden automatisch in das JAR gebündelt. Das Fenster-Icon wird über `AppIcon.getIconImages()` gesetzt; Swing wählt dabei automatisch die optimale Auflösung je nach Display.
+
+Um das Icon im Ubuntu-Launcher anzuzeigen, nutze die beiliegende `.desktop`-Vorlage (`src/main/resources/cleanmediamanager.desktop`):
+
+```bash
+mkdir -p ~/.local/share/icons/hicolor/256x256/apps
+cp src/main/resources/icons/app-icon-256.png \
+   ~/.local/share/icons/hicolor/256x256/apps/cleanmediamanager.png
+
+sed "s|/path/to/clean-media-manager.jar|$(pwd)/target/clean-media-manager-1.3.9-SNAPSHOT-uber.jar|g; \
+     s|/path/to/app-icon-256.png|$HOME/.local/share/icons/hicolor/256x256/apps/cleanmediamanager.png|g" \
+  src/main/resources/cleanmediamanager.desktop \
+  > ~/.local/share/applications/cleanmediamanager.desktop
+```
+
+Icons neu generieren (nach Designänderungen):
+
+```bash
+mvn -q compile exec:java -Dexec.mainClass="com.cleanmediamanager.tools.GenerateIcons"
+```
+
 

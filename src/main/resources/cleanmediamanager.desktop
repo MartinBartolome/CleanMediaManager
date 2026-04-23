@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CleanMediaManager
+Comment=Automatic media renamer and organizer
+Exec=java -jar /path/to/clean-media-manager.jar
+Icon=/path/to/app-icon-256.png
+Terminal=false
+Categories=Utility;AudioVideo;
+StartupNotify=true
