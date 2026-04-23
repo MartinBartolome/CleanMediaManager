@@ -63,29 +63,41 @@ public class AutoUpdater {
 
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("linux")) {
-                // On Linux the running JAR does not block .deb installation,
-                // so we do NOT call System.exit(). We just launch the installer
-                // detached and let the user close the app manually.
-                // Try common GUI .deb installers in order; fall back to xdg-open.
-                String[] candidates = {"gdebi-gtk", "gnome-software", "xdg-open"};
+                String deb = tempFile.toString();
                 boolean launched = false;
-                for (String cmd : candidates) {
-                    try {
-                        new ProcessBuilder("setsid", cmd, tempFile.toString())
+
+                // Check if gdebi-gtk is installed; if so, use pkexec so the
+                // polkit password dialog appears and the install runs as root.
+                try {
+                    boolean hasGdebi = new ProcessBuilder("which", "gdebi-gtk")
+                            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                            .redirectError(ProcessBuilder.Redirect.DISCARD)
+                            .start().waitFor() == 0;
+                    if (hasGdebi) {
+                        new ProcessBuilder("setsid", "pkexec", "gdebi-gtk", deb)
                                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                                 .redirectError(ProcessBuilder.Redirect.DISCARD)
                                 .start();
                         launched = true;
-                        break;
-                    } catch (Exception ignored) {
-                        // command not available – try next
                     }
+                } catch (Exception ignored) {}
+
+                // Fallback: xdg-open (lets the OS pick the default .deb handler)
+                if (!launched) {
+                    try {
+                        new ProcessBuilder("setsid", "xdg-open", deb)
+                                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                                .start();
+                        launched = true;
+                    } catch (Exception ignored) {}
                 }
+
                 if (launched) {
                     onProgress.accept("Installer opened. You can now close this application.");
                 } else {
-                    onProgress.accept("Installer saved to: " + tempFile
-                            + "\nPlease install it manually with: sudo dpkg -i " + tempFile);
+                    onProgress.accept("Installer saved to: " + deb
+                            + "\nPlease install manually: sudo apt install \"" + deb + "\"");
                 }
             } else {
                 // Windows / macOS: installer replaces the running JAR, so exit after opening.
