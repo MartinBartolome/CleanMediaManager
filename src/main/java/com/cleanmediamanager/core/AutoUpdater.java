@@ -63,19 +63,38 @@ public class AutoUpdater {
 
             String os = System.getProperty("os.name", "").toLowerCase();
             if (os.contains("linux")) {
-                // On Linux, Desktop.open() is unreliable – always use setsid + xdg-open
-                // so the installer process is detached from the JVM and survives System.exit().
-                ProcessBuilder pb = new ProcessBuilder("setsid", "xdg-open", tempFile.toString());
-                pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-                pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-                pb.start();
-            } else if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().open(file);
+                // On Linux the running JAR does not block .deb installation,
+                // so we do NOT call System.exit(). We just launch the installer
+                // detached and let the user close the app manually.
+                // Try common GUI .deb installers in order; fall back to xdg-open.
+                String[] candidates = {"gdebi-gtk", "gnome-software", "xdg-open"};
+                boolean launched = false;
+                for (String cmd : candidates) {
+                    try {
+                        new ProcessBuilder("setsid", cmd, tempFile.toString())
+                                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                                .start();
+                        launched = true;
+                        break;
+                    } catch (Exception ignored) {
+                        // command not available – try next
+                    }
+                }
+                if (launched) {
+                    onProgress.accept("Installer opened. You can now close this application.");
+                } else {
+                    onProgress.accept("Installer saved to: " + tempFile
+                            + "\nPlease install it manually with: sudo dpkg -i " + tempFile);
+                }
+            } else {
+                // Windows / macOS: installer replaces the running JAR, so exit after opening.
+                if (Desktop.isDesktopSupported()) {
+                    Desktop.getDesktop().open(file);
+                }
+                Thread.sleep(2500);
+                System.exit(0);
             }
-
-            // Give the OS a moment to pick up the file, then exit
-            Thread.sleep(2500);
-            System.exit(0);
 
         } catch (Exception e) {
             onError.accept("Update failed: " + e.getMessage());
