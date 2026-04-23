@@ -42,7 +42,7 @@ public class FilenameParserTest {
         assertNull(result.getYear());
     }
 
-    // --- Additional FileBot-inspired cases ---
+    // --- Additional edge cases ---
 
     @Test
     public void testMovieTitleContainingYear() {

@@ -7,7 +7,7 @@ public class FilenameParser {
 
     /**
      * Stopwords signal the start of release metadata — everything from the first
-     * stopword onwards is noise (FileBot's "substringBefore" approach).
+     * stopword onwards is noise ("substringBefore" approach).
      * Ordered longest-first within each group to avoid partial matches.
      */
     private static final Pattern STOPWORD_PATTERN = Pattern.compile(
@@ -108,7 +108,7 @@ public class FilenameParser {
             year = bracketYear.group(1);
             title = name.substring(0, bracketYear.start()).trim();
         } else {
-            // Phase 2: cut at the first release-info stopword (FileBot's substringBefore)
+            // Phase 2: cut at the first release-info stopword (substringBefore)
             String head = substringBefore(name);
 
             // Phase 3: extract year from the cleaned head using non-greedy match
@@ -126,7 +126,7 @@ public class FilenameParser {
     }
 
     /**
-     * Returns the substring before the first stopword match (FileBot approach).
+     * Returns the substring before the first stopword match.
      * Falls back to the original string when the remaining text would be too short.
      */
     private String substringBefore(String name) {

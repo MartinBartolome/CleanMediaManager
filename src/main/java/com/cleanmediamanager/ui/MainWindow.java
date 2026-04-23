@@ -23,7 +23,7 @@ public class MainWindow {
     private JComboBox<String> langCombo;
 
     public MainWindow() {
-        frame = new JFrame("CleanMediaManager - FileBot Clone");
+        frame = new JFrame("CleanMediaManager");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1200, 700);
         frame.setLocationRelativeTo(null);
@@ -96,7 +96,7 @@ public class MainWindow {
 
         JMenuItem aboutItem = new JMenuItem("About");
         aboutItem.addActionListener(e -> JOptionPane.showMessageDialog(frame,
-                "CleanMediaManager v" + AppInfo.VERSION + "\n\nA FileBot-like media renaming tool.\nPowered by TheMovieDB API.",
+                "CleanMediaManager v" + AppInfo.VERSION + "\n\nMedia renaming tool powered by TheMovieDB API.",
                 "About", JOptionPane.INFORMATION_MESSAGE));
 
         JMenuItem checkUpdateItem = new JMenuItem("Check for Updates…");
