@@ -34,19 +34,45 @@ public class MovieMatcher {
         String year = parsed.getYear();
 
         return tmdbClient.searchMovie(title, year)
-                .thenAccept(matches -> {
-                    if (matches.isEmpty()) {
-                        file.setStatus(MatchStatus.UNMATCHED);
-                    } else {
+                .thenCompose(matches -> {
+                    if (matches != null && !matches.isEmpty()) {
                         MovieMatch best = matches.get(0);
                         file.setMatch(best);
                         file.setStatus(MatchStatus.MATCHED);
                         String newName = formatService.format(file, best);
                         file.setNewName(newName);
+                        if (onFileUpdated != null) onFileUpdated.accept(file);
+                        return CompletableFuture.completedFuture(null);
                     }
-                    if (onFileUpdated != null) {
-                        onFileUpdated.accept(file);
-                    }
+                    // Try folder name as fallback when title lookup failed
+                    try {
+                        if (file.getPath() != null && file.getPath().getParent() != null) {
+                            String folder = file.getPath().getParent().getFileName().toString();
+                            if (folder != null && !folder.isBlank()) {
+                                // Parse the folder name to extract a cleaner title/year
+                                FilenameParser.ParseResult folderParsed = parser.parse(folder);
+                                String folderTitle = folderParsed.getTitle();
+                                String folderYear = folderParsed.getYear();
+                                String useYear = folderYear != null ? folderYear : year;
+                                return tmdbClient.searchMovie(folderTitle, useYear)
+                                        .thenAccept(fm -> {
+                                            if (fm != null && !fm.isEmpty()) {
+                                                MovieMatch best = fm.get(0);
+                                                file.setMatch(best);
+                                                file.setStatus(MatchStatus.MATCHED);
+                                                String newName = formatService.format(file, best);
+                                                file.setNewName(newName);
+                                            } else {
+                                                file.setStatus(MatchStatus.UNMATCHED);
+                                            }
+                                            if (onFileUpdated != null) onFileUpdated.accept(file);
+                                        });
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    file.setStatus(MatchStatus.UNMATCHED);
+                    if (onFileUpdated != null) onFileUpdated.accept(file);
+                    return CompletableFuture.completedFuture(null);
                 })
                 .exceptionally(ex -> {
                     file.setStatus(MatchStatus.ERROR);

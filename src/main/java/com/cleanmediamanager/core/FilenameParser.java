@@ -148,6 +148,17 @@ public class FilenameParser {
         title = BRACKET_CONTENT.matcher(title).replaceAll(" ");
         title = TRAILING_SEPARATORS.matcher(title).replaceAll("");
         title = title.replaceAll("\\s+", " ").trim();
+
+        // remove trailing disc/part numbering like "(1)" or "-cd1" -> keep base title
+        title = title.replaceAll("(?i)\\s*\\(?cd?\\s*\\d{1,3}\\)?$", "");
+        // remove simple trailing numbers or separators followed by numbers
+        title = title.replaceAll("[\\s._-]+\\d{1,3}$", "");
+        // remove trailing 'part N' (case-insensitive)
+        title = title.replaceAll("(?i)\\s*part\\s+\\d{1,3}$", "");
+        // remove trailing ordinal like '1st', '2nd', '3rd'
+        title = title.replaceAll("[\\s._-]+\\d{1,3}(st|nd|rd|th)$", "");
+
+        title = title.trim();
         return title;
     }
 
