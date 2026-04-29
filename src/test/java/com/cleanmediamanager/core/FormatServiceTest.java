@@ -5,6 +5,8 @@ import com.cleanmediamanager.model.MediaFile;
 import com.cleanmediamanager.model.MovieMatch;
 import com.cleanmediamanager.model.SeriesMatch;
 import org.junit.Test;
+import org.junit.Before;
+import java.util.prefs.Preferences;
 
 import java.nio.file.Paths;
 
@@ -13,6 +15,13 @@ import static org.junit.Assert.*;
 public class FormatServiceTest {
 
     private final FormatService service = new FormatService();
+
+    @Before
+    public void resetPreferences() {
+        Preferences node = Preferences.userRoot().node("com/cleanmediamanager");
+        node.put("format.movie", "{title} ({year}){ext}");
+        node.put("format.episode", "{series} - S{season:02d}E{episode:02d} - {title}{ext}");
+    }
 
     @Test
     public void testInceptionFormat() {

@@ -14,6 +14,8 @@ import com.cleanmediamanager.model.SeriesMatch;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.util.Map;
+import java.util.HashMap;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -305,20 +307,20 @@ public class Controller {
 
         DocumentListener dl = new DocumentListener() {
             private void upd() {
-            String sampleMovie = movieField.getText()
-                .replace("{title}", "Sample Movie")
-                .replace("{year}", "2020")
-                .replace("{ext}", ".mkv");
-            String sampleEpisode = episodeField.getText()
-                .replace("{series}", "My Series")
-                .replace("{season}", "1")
-                .replace("{episode}", "2")
-                .replace("{title}", "Pilot")
-                .replace("{ext}", ".mkv");
-            sampleEpisode = sampleEpisode.replaceAll("\\{season:02d\\}", "01");
-            sampleEpisode = sampleEpisode.replaceAll("\\{episode:02d\\}", "02");
-            moviePreview.setText(sampleMovie);
-            episodePreview.setText(sampleEpisode);
+                Map<String,String> movieVals = new HashMap<>();
+                movieVals.put("title", "Sample Movie");
+                movieVals.put("year", "2020");
+                movieVals.put("ext", ".mkv");
+
+                Map<String,String> epVals = new HashMap<>();
+                epVals.put("series", "My Series");
+                epVals.put("season", "1");
+                epVals.put("episode", "2");
+                epVals.put("title", "Pilot");
+                epVals.put("ext", ".mkv");
+
+                moviePreview.setText(applySampleTemplate(movieField.getText(), movieVals));
+                episodePreview.setText(applySampleTemplate(episodeField.getText(), epVals));
             }
             @Override public void insertUpdate(DocumentEvent e) { upd(); }
             @Override public void removeUpdate(DocumentEvent e) { upd(); }
@@ -559,6 +561,33 @@ public class Controller {
 
     public void log(String message) {
         mainWindow.appendLog(message);
+    }
+
+    private String applySampleTemplate(String template, Map<String,String> values) {
+        if (template == null) return "";
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\{(\\w+)(?::0(\\d+)d)?\\}");
+        java.util.regex.Matcher m = p.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String key = m.group(1);
+            String pad = m.group(2);
+            String val = values.getOrDefault(key, "");
+            if (pad != null && !pad.isEmpty()) {
+                try {
+                    int width = Integer.parseInt(pad);
+                    long num = Long.parseLong(val.isEmpty() ? "0" : val);
+                    val = String.format("%0" + width + "d", num);
+                } catch (Exception e) {
+                    int width = Integer.parseInt(pad);
+                    if (val.length() < width) {
+                        val = String.format("%" + width + "s", val).replace(' ', '0');
+                    }
+                }
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(val));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     public List<MediaFile> getMediaFiles() {
