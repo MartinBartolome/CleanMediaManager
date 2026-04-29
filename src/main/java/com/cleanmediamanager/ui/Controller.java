@@ -12,6 +12,8 @@ import com.cleanmediamanager.model.MediaType;
 import com.cleanmediamanager.model.SeriesMatch;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -235,40 +237,150 @@ public class Controller {
         String currentKey = prefs.get(PREF_API_KEY, "");
         String currentLang = prefs.get(PREF_LANGUAGE, "en-US");
 
-        JPanel panel = new JPanel(new GridBagLayout());
+        // General settings panel (API key, language)
+        JPanel general = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4, 4, 4, 4);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("TMDB API Key:"), gbc);
+        general.add(new JLabel("TMDB API Key:"), gbc);
         gbc.gridx = 1;
         JPasswordField keyField = new JPasswordField(currentKey, 30);
-        panel.add(keyField, gbc);
+        general.add(keyField, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Language:"), gbc);
+        general.add(new JLabel("Language:"), gbc);
         gbc.gridx = 1;
         String[] languages = {"en-US", "de-DE", "fr-FR", "es-ES", "ja-JP"};
         JComboBox<String> langCombo = new JComboBox<>(languages);
         langCombo.setSelectedItem(currentLang);
-        panel.add(langCombo, gbc);
+        general.add(langCombo, gbc);
 
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
         JLabel hint = new JLabel("<html><small>Get a free API key at <a href='#'>themoviedb.org</a></small></html>");
-        panel.add(hint, gbc);
+        general.add(hint, gbc);
+
+        // Filename format panel (moved into Settings as a new tab)
+        Preferences node = Preferences.userRoot().node("com/cleanmediamanager");
+        JPanel fmt = new JPanel(new GridBagLayout());
+        GridBagConstraints fgbc = new GridBagConstraints();
+        fgbc.insets = new Insets(6,6,6,6);
+        fgbc.fill = GridBagConstraints.HORIZONTAL;
+        fgbc.gridx = 0; fgbc.gridy = 0; fgbc.weightx = 0;
+        fmt.add(new JLabel("Movie template:"), fgbc);
+        fgbc.gridx = 1; fgbc.weightx = 1;
+        JTextField movieField = new JTextField(node.get("format.movie", "{title} ({year}){ext}"));
+        fmt.add(movieField, fgbc);
+
+        fgbc.gridx = 0; fgbc.gridy = 1; fgbc.weightx = 0;
+        fmt.add(new JLabel("Preview:"), fgbc);
+        fgbc.gridx = 1; fgbc.weightx = 1;
+        JLabel moviePreview = new JLabel();
+        moviePreview.setBorder(BorderFactory.createEtchedBorder());
+        fmt.add(moviePreview, fgbc);
+
+        fgbc.gridx = 0; fgbc.gridy = 2; fgbc.weightx = 0;
+        fmt.add(new JLabel("Episode template:"), fgbc);
+        fgbc.gridx = 1; fgbc.weightx = 1;
+        JTextField episodeField = new JTextField(node.get("format.episode", "{series} - S{season:02d}E{episode:02d} - {title}{ext}"));
+        fmt.add(episodeField, fgbc);
+
+        fgbc.gridx = 0; fgbc.gridy = 3; fgbc.weightx = 0;
+        fmt.add(new JLabel("Preview:"), fgbc);
+        fgbc.gridx = 1; fgbc.weightx = 1;
+        JLabel episodePreview = new JLabel();
+        episodePreview.setBorder(BorderFactory.createEtchedBorder());
+        fmt.add(episodePreview, fgbc);
+
+        fgbc.gridx = 0; fgbc.gridy = 4; fgbc.gridwidth = 2; fgbc.weightx = 1;
+        String movieHint = "<html>Placeholders: <b>{title}</b>, <b>{year}</b>, <b>{ext}</b><br>" +
+            "Example: {title} ({year}){ext}  →  'My Movie (2020).mkv'<br>" +
+            "You can include a single '/' to rename the parent folder and file: e.g. {title}/{title}{ext} (only one folder level).</html>";
+        String episodeHint = "<html>Placeholders: <b>{series}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{ext}</b><br>" +
+            "Padding: use e.g. {season:02d} to get '01' for season 1.<br>" +
+            "Example: {series} - S{season:02d}E{episode:02d} - {title}{ext}</html>";
+        JLabel hintPanel = new JLabel(movieHint + "<hr>" + episodeHint);
+        fmt.add(hintPanel, fgbc);
+
+        DocumentListener dl = new DocumentListener() {
+            private void upd() {
+            String sampleMovie = movieField.getText()
+                .replace("{title}", "Sample Movie")
+                .replace("{year}", "2020")
+                .replace("{ext}", ".mkv");
+            String sampleEpisode = episodeField.getText()
+                .replace("{series}", "My Series")
+                .replace("{season}", "1")
+                .replace("{episode}", "2")
+                .replace("{title}", "Pilot")
+                .replace("{ext}", ".mkv");
+            sampleEpisode = sampleEpisode.replaceAll("\\{season:02d\\}", "01");
+            sampleEpisode = sampleEpisode.replaceAll("\\{episode:02d\\}", "02");
+            moviePreview.setText(sampleMovie);
+            episodePreview.setText(sampleEpisode);
+            }
+            @Override public void insertUpdate(DocumentEvent e) { upd(); }
+            @Override public void removeUpdate(DocumentEvent e) { upd(); }
+            @Override public void changedUpdate(DocumentEvent e) { upd(); }
+        };
+        movieField.getDocument().addDocumentListener(dl);
+        episodeField.getDocument().addDocumentListener(dl);
+        dl.insertUpdate(null); // initialize previews
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("General", general);
+        tabs.addTab("Filename Format", fmt);
 
         int result = JOptionPane.showConfirmDialog(mainWindow.getFrame(),
-                panel, "Settings", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            tabs, "Settings", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
         if (result == JOptionPane.OK_OPTION) {
             String newKey = new String(keyField.getPassword()).trim();
             String newLang = (String) langCombo.getSelectedItem();
             prefs.put(PREF_API_KEY, newKey);
             prefs.put(PREF_LANGUAGE, newLang != null ? newLang : "en-US");
+            // save formats to the shared node used by FormatService
+            Preferences nodePref = Preferences.userRoot().node("com/cleanmediamanager");
+            nodePref.put("format.movie", movieField.getText());
+            nodePref.put("format.episode", episodeField.getText());
+            log("[DEBUG] Saved templates: movie='" + movieField.getText() + "' episode='" + episodeField.getText() + "'");
+            // Recompute preview/newName for currently matched files
+                try {
+                    com.cleanmediamanager.core.FormatService fs = new com.cleanmediamanager.core.FormatService();
+                    String readMovie = Preferences.userRoot().node("com/cleanmediamanager").get("format.movie", "<none>");
+                    log("[DEBUG] FormatService will read movie template: '" + readMovie + "'");
+                    int shown = 0;
+                    for (com.cleanmediamanager.model.MediaFile mf : mediaFiles) {
+                        if (mf.getStatus() == com.cleanmediamanager.model.MatchStatus.MATCHED) {
+                            // ensure we have metadata for movies
+                            if (mf.getMediaType() == com.cleanmediamanager.model.MediaType.MOVIE && mf.getMatch() == null) {
+                                log("[WARN] Matched file has null MovieMatch: " + mf.getOriginalName());
+                                continue;
+                            }
+                            String before = mf.getNewName();
+                            if (mf.getMediaType() == com.cleanmediamanager.model.MediaType.MOVIE) {
+                                mf.setNewName(fs.format(mf, mf.getMatch()));
+                            } else {
+                                mf.setNewName(fs.formatEpisode(mf, mf.getSeriesMatch(), mf.getEpisodeMatch()));
+                            }
+                            if (shown < 5) {
+                                log("[DEBUG] Updated newName: '" + before + "' -> '" + mf.getNewName() + "' for file: " + mf.getOriginalName());
+                                shown++;
+                            }
+                        }
+                    }
+                    refreshTables();
+                } catch (Exception e) {
+                    log("[ERROR] Failed to recompute formats: " + e.getMessage());
+                }
             mainWindow.updateLanguageCombo(newLang != null ? newLang : "en-US");
             log("[INFO] Settings saved.");
         }
+    }
+
+    public void onFilenameFormatClicked() {
+        // removed: formatting UI is now part of Settings dialog
     }
 
     public void onLanguageChanged(String language) {

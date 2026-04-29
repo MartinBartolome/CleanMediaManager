@@ -131,6 +131,7 @@ public class MainWindow {
         settingsButton.setToolTipText("Configure API key and language");
         settingsButton.addActionListener(e -> controller.onSettingsButtonClicked());
 
+
         JButton networkButton = new JButton("🌐 Network");
         networkButton.setToolTipText("Open network path (e.g. smb://server/share)");
         networkButton.addActionListener(e -> controller.onOpenNetworkPathClicked());
