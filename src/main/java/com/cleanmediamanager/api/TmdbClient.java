@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -63,6 +64,20 @@ public class TmdbClient {
         }
 
         try {
+            return searchMovieOnce(title, year)
+                    .thenCompose(list -> {
+                        if (!list.isEmpty()) return CompletableFuture.completedFuture(list);
+                        String alt = toGermanAscii(title);
+                        if (alt.equals(title)) return CompletableFuture.completedFuture(list);
+                        return searchMovieOnce(alt, year);
+                    });
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+    }
+
+    private CompletableFuture<List<MovieMatch>> searchMovieOnce(String title, String year) {
+        try {
             String encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8);
             StringBuilder url = new StringBuilder(BASE_URL)
                     .append("/search/movie")
@@ -77,7 +92,6 @@ public class TmdbClient {
             return throttledGet(url.toString())
                     .thenApply(body -> parseResponse(body))
                     .exceptionally(ex -> Collections.emptyList());
-
         } catch (Exception e) {
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
@@ -111,6 +125,20 @@ public class TmdbClient {
         }
 
         try {
+            return searchSeriesOnce(title, year)
+                    .thenCompose(list -> {
+                        if (!list.isEmpty()) return CompletableFuture.completedFuture(list);
+                        String alt = toGermanAscii(title);
+                        if (alt.equals(title)) return CompletableFuture.completedFuture(list);
+                        return searchSeriesOnce(alt, year);
+                    });
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+    }
+
+    private CompletableFuture<List<SeriesMatch>> searchSeriesOnce(String title, String year) {
+        try {
             String encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8);
             StringBuilder url = new StringBuilder(BASE_URL)
                     .append("/search/tv")
@@ -125,10 +153,27 @@ public class TmdbClient {
             return throttledGet(url.toString())
                     .thenApply(body -> parseSeriesResponse(body))
                     .exceptionally(ex -> Collections.emptyList());
-
         } catch (Exception e) {
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
+    }
+
+    /**
+     * Convert common German characters to ASCII-friendly alternatives and strip
+     * other diacritics. Examples: "Bären" -> "Baeren" or after stripping -> "Baren".
+     */
+    private String toGermanAscii(String input) {
+        if (input == null || input.isBlank()) return input == null ? null : "";
+        // First apply German-specific replacements
+        String replaced = input
+                .replace("Ä", "Ae").replace("ä", "ae")
+                .replace("Ö", "Oe").replace("ö", "oe")
+                .replace("Ü", "Ue").replace("ü", "ue")
+                .replace("ß", "ss");
+
+        // Normalize and remove remaining diacritics
+        String normalized = Normalizer.normalize(replaced, Normalizer.Form.NFD);
+        return normalized.replaceAll("\\p{M}", "");
     }
 
     private List<SeriesMatch> parseSeriesResponse(String body) {
