@@ -8,6 +8,7 @@ import com.cleanmediamanager.model.MediaType;
 import com.cleanmediamanager.model.SeriesMatch;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,7 @@ public class SeriesMatcher {
                 file.setStatus(MatchStatus.UNMATCHED);
                 if (onFileUpdated != null) onFileUpdated.accept(file);
             } else {
-                byTitle.computeIfAbsent(parsed.getTitle().toLowerCase(), k -> new ArrayList<>())
+                byTitle.computeIfAbsent(parsed.getTitle().toLowerCase(Locale.ROOT), k -> new ArrayList<>())
                        .add(file);
             }
         }

@@ -134,4 +134,54 @@ public class FilenameParserTest {
         assertEquals(0, r.getSeason());
         assertEquals(0, r.getEpisode());
     }
+
+    // --- Umlaut / non-ASCII title tests ---
+
+    @Test
+    public void testMovieTitleWithUmlaut() {
+        // Standard dot-separated file with umlaut in title
+        FilenameParser.ParseResult r = parser.parse("Ärger.im.Amt.2021.1080p.BluRay.mkv");
+        assertEquals("Ärger im Amt", r.getTitle());
+        assertEquals("2021", r.getYear());
+    }
+
+    @Test
+    public void testMovieTitleUmlautAdjacentToStopword() {
+        // Umlaut immediately before a stopword without separator - stopword must NOT be matched
+        // because the adjacent non-ASCII char is still a letter (\p{L})
+        FilenameParser.ParseResult r = parser.parse("Schüöhevc.mkv");
+        assertEquals("Schüöhevc", r.getTitle());
+        assertNull(r.getYear());
+    }
+
+    @Test
+    public void testMovieTitleStopwordFollowedByUmlaut() {
+        // Stopword that is immediately followed by a non-ASCII char must NOT be treated as stopword
+        FilenameParser.ParseResult r = parser.parse("Filmtitel.multiübergang.mkv");
+        assertEquals("Filmtitel multiübergang", r.getTitle());
+        assertNull(r.getYear());
+    }
+
+    @Test
+    public void testSeriesTitleWithUmlaut() {
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("Löwenherz.S01E02.1080p.mkv");
+        assertEquals("Löwenherz", r.getTitle());
+        assertEquals(1, r.getSeason());
+        assertEquals(2, r.getEpisode());
+    }
+
+    @Test
+    public void testSeriesTitleWithMultipleUmlauts() {
+        FilenameParser.EpisodeParseResult r = parser.parseEpisode("Tschüss.Ärger.S03E07.720p.mkv");
+        assertEquals("Tschüss Ärger", r.getTitle());
+        assertEquals(3, r.getSeason());
+        assertEquals(7, r.getEpisode());
+    }
+
+    @Test
+    public void testMovieTitleWithUmlautAndBracketYear() {
+        FilenameParser.ParseResult r = parser.parse("Über die Grenze (2019) [BluRay].mkv");
+        assertEquals("Über die Grenze", r.getTitle());
+        assertEquals("2019", r.getYear());
+    }
 }
