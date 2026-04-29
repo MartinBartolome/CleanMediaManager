@@ -11,7 +11,7 @@ public class FilenameParser {
      * Ordered longest-first within each group to avoid partial matches.
      */
     private static final Pattern STOPWORD_PATTERN = Pattern.compile(
-            "(?i)(?<![a-zA-Z\\d])(" +
+            "(?i)(?<![\\p{L}\\d])(" +
             // Resolution
             "2160p|1080[pi]|720p|480[pi]|360p|240p|4k|uhd|" +
             // Video source (longest variants first)
@@ -22,7 +22,7 @@ public class FilenameParser {
             "truehd|eac3|dts[\\-.]?(?:hd|ma|x)?|atmos|flac|aac|ac3|mp3|" +
             // Release tags
             "proper|repack|extended|theatrical|unrated|limited|dubbed|multi|hdr10\\+?|hdr|sdr|10bit|8bit|dovi|dolby" +
-            ")(?![a-zA-Z\\d])"
+            ")(?![\\p{L}\\d])"
     );
 
     // Strict: year explicitly wrapped in brackets or parens, e.g. (2014) or [2014]
