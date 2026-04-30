@@ -4,6 +4,7 @@ import com.cleanmediamanager.api.TmdbClient;
 import com.cleanmediamanager.core.FileScanner;
 import com.cleanmediamanager.core.FilenameParser;
 import com.cleanmediamanager.core.MovieMatcher;
+import com.cleanmediamanager.core.FormatService;
 import com.cleanmediamanager.core.RenameService;
 import com.cleanmediamanager.core.SeriesMatcher;
 import com.cleanmediamanager.model.MatchStatus;
@@ -161,6 +162,8 @@ public class Controller {
                         mainWindow.setMatchButtonEnabled(true);
                         tableView.getLeftModel().refresh();
                         tableView.getRightModel().refresh();
+                        // Prompt user for any low-confidence candidates
+                        promptForLowConfidenceMatches();
                     }
                 }
             };
@@ -191,6 +194,8 @@ public class Controller {
                         mainWindow.setMatchButtonEnabled(true);
                         tableView.getLeftModel().refresh();
                         tableView.getRightModel().refresh();
+                        // Prompt user for any low-confidence candidates
+                        promptForLowConfidenceMatches();
                     }
                 }
             };
@@ -507,56 +512,72 @@ public class Controller {
             return;
         }
 
-        // Determine the series group: all files with the same parsed title (any status)
         FilenameParser parser = new FilenameParser();
-        String groupTitle = parser.parseEpisode(triggerFile.getOriginalName()).getTitle();
-
-        List<MediaFile> group = mediaFiles.stream()
-                .filter(f -> parser.parseEpisode(f.getOriginalName()).getTitle()
-                                   .equalsIgnoreCase(groupTitle))
-                .collect(Collectors.toList());
-
         String language = prefs.get(PREF_LANGUAGE, "en-US");
         TmdbClient client = new TmdbClient(apiKey, language);
 
-        ManualSearchDialog dialog = new ManualSearchDialog(
-                mainWindow.getFrame(), client, groupTitle);
-        SeriesMatch selected = dialog.showAndWait();
-        if (selected == null) return; // user cancelled
+        if (currentMode == MediaType.EPISODE) {
+            // Determine the series group: all files with the same parsed title (any status)
+            String groupTitle = parser.parseEpisode(triggerFile.getOriginalName()).getTitle();
 
-        log("[INFO] Manuelles Matching: '" + selected.getName()
-                + "' wird auf " + group.size() + " Datei(en) angewendet…");
-        mainWindow.setMatchButtonEnabled(false);
+            List<MediaFile> group = mediaFiles.stream()
+                    .filter(f -> parser.parseEpisode(f.getOriginalName()).getTitle()
+                                       .equalsIgnoreCase(groupTitle))
+                    .collect(Collectors.toList());
 
-        SeriesMatcher matcher = new SeriesMatcher(client);
-        SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
-            @Override
-            protected Void doInBackground() throws Exception {
-                matcher.matchFilesWithSeries(group, selected, f -> publish(f)).get();
-                return null;
-            }
+                    ManualSearchDialog dialog = new ManualSearchDialog(
+                        mainWindow.getFrame(), client, groupTitle, triggerFile.getOriginalName(), triggerFile.getSeriesMatch());
+            SeriesMatch selected = dialog.showAndWait();
+            if (selected == null) return; // user cancelled
 
-            @Override
-            protected void process(List<MediaFile> chunks) {
-                tableView.getLeftModel().refresh();
-                tableView.getRightModel().refresh();
-            }
+            log("[INFO] Manuelles Matching: '" + selected.getName()
+                    + "' wird auf " + group.size() + " Datei(en) angewendet…");
+            mainWindow.setMatchButtonEnabled(false);
 
-            @Override
-            protected void done() {
-                try {
-                    get();
-                    log("[INFO] Manuelles Matching abgeschlossen.");
-                } catch (Exception e) {
-                    log("[ERROR] Matching fehlgeschlagen: " + e.getMessage());
-                } finally {
-                    mainWindow.setMatchButtonEnabled(true);
+            SeriesMatcher matcher = new SeriesMatcher(client);
+            SwingWorker<Void, MediaFile> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    matcher.matchFilesWithSeries(group, selected, f -> publish(f)).get();
+                    return null;
+                }
+
+                @Override
+                protected void process(List<MediaFile> chunks) {
                     tableView.getLeftModel().refresh();
                     tableView.getRightModel().refresh();
                 }
-            }
-        };
-        worker.execute();
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                        log("[INFO] Manuelles Matching abgeschlossen.");
+                    } catch (Exception e) {
+                        log("[ERROR] Matching fehlgeschlagen: " + e.getMessage());
+                    } finally {
+                        mainWindow.setMatchButtonEnabled(true);
+                        tableView.getLeftModel().refresh();
+                        tableView.getRightModel().refresh();
+                    }
+                }
+            };
+            worker.execute();
+        } else {
+            // Movie manual search for single file
+            String title = parser.parse(triggerFile.getOriginalName()).getTitle();
+                    MovieManualSearchDialog dialog = new MovieManualSearchDialog(
+                        mainWindow.getFrame(), new TmdbClient(apiKey, prefs.get(PREF_LANGUAGE, "en-US")), title, triggerFile.getOriginalName(), triggerFile.getMatch());
+            com.cleanmediamanager.model.MovieMatch selected = dialog.showAndWait();
+            if (selected == null) return;
+            log("[INFO] Manuelles Matching: '" + selected.getTitle() + "' angewendet auf " + triggerFile.getOriginalName());
+            FormatService fmt = new FormatService();
+            triggerFile.setMatch(selected);
+            triggerFile.setStatus(MatchStatus.MATCHED);
+            triggerFile.setNewName(fmt.format(triggerFile, selected));
+            tableView.getLeftModel().refresh();
+            tableView.getRightModel().refresh();
+        }
     }
 
     public void log(String message) {
@@ -592,5 +613,35 @@ public class Controller {
 
     public List<MediaFile> getMediaFiles() {
         return mediaFiles;
+    }
+
+    // Finds low-confidence candidates and invokes manual search dialogs:
+    // - For series: group by parsed title and prompt once per group
+    // - For movies: prompt per file
+    private void promptForLowConfidenceMatches() {
+        String apiKey = prefs.get(PREF_API_KEY, "");
+        if (apiKey.isBlank()) return;
+
+        FilenameParser parser = new FilenameParser();
+
+        if (currentMode == MediaType.EPISODE) {
+            Map<String, MediaFile> groups = new HashMap<>();
+            for (MediaFile f : mediaFiles) {
+                if (f.getStatus() == MatchStatus.UNMATCHED && f.getSeriesMatch() != null) {
+                    String title = parser.parseEpisode(f.getOriginalName()).getTitle();
+                    String key = title == null ? "" : title.toLowerCase();
+                    groups.putIfAbsent(key, f);
+                }
+            }
+            for (MediaFile trigger : groups.values()) {
+                handleManualSearch(trigger);
+            }
+        } else {
+            for (MediaFile f : new ArrayList<>(mediaFiles)) {
+                if (f.getStatus() == MatchStatus.UNMATCHED && f.getMatch() != null) {
+                    handleManualSearch(f);
+                }
+            }
+        }
     }
 }

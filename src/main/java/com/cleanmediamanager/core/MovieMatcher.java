@@ -14,11 +14,13 @@ public class MovieMatcher {
     private final TmdbClient tmdbClient;
     private final FilenameParser parser;
     private final FormatService formatService;
+    private final MatchScorer scorer;
 
     public MovieMatcher(TmdbClient tmdbClient) {
         this.tmdbClient = tmdbClient;
         this.parser = new FilenameParser();
         this.formatService = new FormatService();
+        this.scorer = new MatchScorer();
     }
 
     public CompletableFuture<Void> matchFiles(List<MediaFile> files, Consumer<MediaFile> onFileUpdated) {
@@ -37,10 +39,16 @@ public class MovieMatcher {
                 .thenCompose(matches -> {
                     if (matches != null && !matches.isEmpty()) {
                         MovieMatch best = matches.get(0);
+                        double score = scorer.scoreMovie(title, year, best);
                         file.setMatch(best);
-                        file.setStatus(MatchStatus.MATCHED);
-                        String newName = formatService.format(file, best);
-                        file.setNewName(newName);
+                        file.setMatchScore(score);
+                        if (score >= MatchScorer.DEFAULT_THRESHOLD) {
+                            file.setStatus(MatchStatus.MATCHED);
+                            String newName = formatService.format(file, best);
+                            file.setNewName(newName);
+                        } else {
+                            file.setStatus(MatchStatus.UNMATCHED);
+                        }
                         if (onFileUpdated != null) onFileUpdated.accept(file);
                         return CompletableFuture.completedFuture(null);
                     }
@@ -58,10 +66,16 @@ public class MovieMatcher {
                                         .thenAccept(fm -> {
                                             if (fm != null && !fm.isEmpty()) {
                                                 MovieMatch best = fm.get(0);
+                                                double score = scorer.scoreMovie(folderTitle, useYear, best);
                                                 file.setMatch(best);
-                                                file.setStatus(MatchStatus.MATCHED);
-                                                String newName = formatService.format(file, best);
-                                                file.setNewName(newName);
+                                                file.setMatchScore(score);
+                                                if (score >= MatchScorer.DEFAULT_THRESHOLD) {
+                                                    file.setStatus(MatchStatus.MATCHED);
+                                                    String newName = formatService.format(file, best);
+                                                    file.setNewName(newName);
+                                                } else {
+                                                    file.setStatus(MatchStatus.UNMATCHED);
+                                                }
                                             } else {
                                                 file.setStatus(MatchStatus.UNMATCHED);
                                             }

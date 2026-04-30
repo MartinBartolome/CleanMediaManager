@@ -20,11 +20,13 @@ public class SeriesMatcher {
     private final TmdbClient tmdbClient;
     private final FilenameParser parser;
     private final FormatService formatService;
+    private final MatchScorer scorer;
 
     public SeriesMatcher(TmdbClient tmdbClient) {
         this.tmdbClient = tmdbClient;
         this.parser = new FilenameParser();
         this.formatService = new FormatService();
+        this.scorer = new MatchScorer();
     }
 
     /**
@@ -61,6 +63,17 @@ public class SeriesMatcher {
                             return CompletableFuture.completedFuture(null);
                         }
                         SeriesMatch series = results.get(0);
+                        double score = scorer.scoreSeries(title, null, series);
+                        // store candidate on files; if confidence low, mark UNMATCHED and skip fetching seasons
+                        if (score < MatchScorer.DEFAULT_THRESHOLD) {
+                            group.forEach(f -> {
+                                f.setSeriesMatch(series);
+                                f.setMatchScore(score);
+                                f.setStatus(MatchStatus.UNMATCHED);
+                                if (onFileUpdated != null) onFileUpdated.accept(f);
+                            });
+                            return CompletableFuture.completedFuture(null);
+                        }
                         group.forEach(f -> f.setSeriesMatch(series));
                         return matchGroupBySeason(group, series, onFileUpdated);
                     })

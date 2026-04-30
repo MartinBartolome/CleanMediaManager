@@ -15,7 +15,7 @@ public class FileTableModel extends AbstractTableModel {
     private List<MediaFile> files;
 
     private static final String[] LEFT_COLUMNS = {"Original Filename", "Status"};
-    private static final String[] RIGHT_COLUMNS = {"New Filename", "Status"};
+    private static final String[] RIGHT_COLUMNS = {"New Filename", "Confidence", "Status"};
 
     public FileTableModel(PanelType panelType) {
         this.panelType = panelType;
@@ -45,7 +45,8 @@ public class FileTableModel extends AbstractTableModel {
 
     @Override
     public int getColumnCount() {
-        return 2;
+        String[] cols = panelType == PanelType.LEFT ? LEFT_COLUMNS : RIGHT_COLUMNS;
+        return cols.length;
     }
 
     @Override
@@ -58,12 +59,21 @@ public class FileTableModel extends AbstractTableModel {
     public Object getValueAt(int rowIndex, int columnIndex) {
         if (rowIndex < 0 || rowIndex >= files.size()) return null;
         MediaFile file = files.get(rowIndex);
-        if (columnIndex == 0) {
-            return panelType == PanelType.LEFT
-                    ? file.getOriginalName()
-                    : (file.getNewName() != null ? file.getNewName() : "\u2014");
+        if (panelType == PanelType.LEFT) {
+            if (columnIndex == 0) {
+                return file.getOriginalName();
+            } else {
+                return formatStatus(file.getStatus());
+            }
         } else {
-            return formatStatus(file.getStatus());
+            // RIGHT panel: 0=newName, 1=confidence, 2=status
+            if (columnIndex == 0) {
+                return file.getNewName() != null ? file.getNewName() : "\u2014";
+            } else if (columnIndex == 1) {
+                return formatConfidence(file.getMatchScore());
+            } else {
+                return formatStatus(file.getStatus());
+            }
         }
     }
 
@@ -74,6 +84,12 @@ public class FileTableModel extends AbstractTableModel {
             case UNMATCHED -> "\u26A0\uFE0F No Match";
             case ERROR -> "\u274C Error";
         };
+    }
+
+    private String formatConfidence(double score) {
+        if (score <= 0.0) return "—";
+        double pct = score * 100.0;
+        return String.format("%.1f%%", pct);
     }
 
     @Override

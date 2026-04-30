@@ -11,6 +11,7 @@ public class MediaFile {
     private MovieMatch match;
     private SeriesMatch seriesMatch;
     private EpisodeMatch episodeMatch;
+    private double matchScore;
 
     public MediaFile(Path path) {
         this.path = path;
@@ -21,6 +22,7 @@ public class MediaFile {
         this.match = null;
         this.seriesMatch = null;
         this.episodeMatch = null;
+        this.matchScore = 0.0;
     }
 
     public Path getPath() { return path; }
@@ -38,4 +40,6 @@ public class MediaFile {
     public void setSeriesMatch(SeriesMatch seriesMatch) { this.seriesMatch = seriesMatch; }
     public EpisodeMatch getEpisodeMatch() { return episodeMatch; }
     public void setEpisodeMatch(EpisodeMatch episodeMatch) { this.episodeMatch = episodeMatch; }
+    public double getMatchScore() { return matchScore; }
+    public void setMatchScore(double matchScore) { this.matchScore = matchScore; }
 }

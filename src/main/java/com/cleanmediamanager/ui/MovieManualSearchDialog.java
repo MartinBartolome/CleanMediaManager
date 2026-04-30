@@ -1,7 +1,7 @@
 package com.cleanmediamanager.ui;
 
 import com.cleanmediamanager.api.TmdbClient;
-import com.cleanmediamanager.model.SeriesMatch;
+import com.cleanmediamanager.model.MovieMatch;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,25 +11,25 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Modal dialog that lets the user search TMDB for a series by name and pick
- * one result. The caller receives the selected {@link SeriesMatch} (or null
+ * Modal dialog that lets the user search TMDB for a movie by name and pick
+ * one result. The caller receives the selected {@link MovieMatch} (or null
  * when the dialog is cancelled) via {@link #showAndWait()}.
  */
-public class ManualSearchDialog extends JDialog {
+public class MovieManualSearchDialog extends JDialog {
 
     private final TmdbClient client;
-    private SeriesMatch selectedMatch = null;
-    private final SeriesMatch initialSelected;
+    private MovieMatch selectedMatch = null;
+    private final MovieMatch initialSelected;
 
     private final JTextField searchField;
     private final JButton searchButton;
-    private final JList<SeriesMatch> resultList;
-    private final DefaultListModel<SeriesMatch> listModel;
+    private final JList<MovieMatch> resultList;
+    private final DefaultListModel<MovieMatch> listModel;
     private final JButton okButton;
     private final JLabel statusLabel;
 
-    public ManualSearchDialog(JFrame parent, TmdbClient client, String initialQuery, String initialFilename, SeriesMatch initialSelected) {
-        super(parent, "Manuell suchen", true);
+    public MovieManualSearchDialog(JFrame parent, TmdbClient client, String initialQuery, String initialFilename, MovieMatch initialSelected) {
+        super(parent, "Manuell suchen (Film)", true);
         this.client = client;
         this.initialSelected = initialSelected;
 
@@ -37,13 +37,12 @@ public class ManualSearchDialog extends JDialog {
         setLocationRelativeTo(parent);
         setLayout(new BorderLayout(8, 8));
 
-        // ── Top: search row ─────────────────────────────────────────────────
         JPanel searchPanel = new JPanel(new BorderLayout(4, 0));
         searchPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
         searchField = new JTextField(initialQuery != null ? initialQuery : "");
         searchField.setFont(new Font("SansSerif", Font.PLAIN, 13));
         searchButton = new JButton("Suchen");
-        searchPanel.add(new JLabel("Serienname: "), BorderLayout.WEST);
+        searchPanel.add(new JLabel("Filmname: "), BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(searchButton, BorderLayout.EAST);
         JLabel fileLabel = new JLabel("Datei: " + (initialFilename != null ? initialFilename : ""));
@@ -51,19 +50,17 @@ public class ManualSearchDialog extends JDialog {
         searchPanel.add(fileLabel, BorderLayout.SOUTH);
         add(searchPanel, BorderLayout.NORTH);
 
-        // ── Center: result list ──────────────────────────────────────────────
         listModel = new DefaultListModel<>();
         resultList = new JList<>(listModel);
         resultList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         resultList.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        resultList.setCellRenderer(new SeriesMatchRenderer());
+        resultList.setCellRenderer(new MovieMatchRenderer());
         JScrollPane scroll = new JScrollPane(resultList);
         scroll.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(0, 8, 0, 8),
                 BorderFactory.createTitledBorder("Suchergebnisse")));
         add(scroll, BorderLayout.CENTER);
 
-        // ── Bottom: status label + OK / Cancel ───────────────────────────────
         statusLabel = new JLabel(" ");
         statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
         statusLabel.setFont(new Font("SansSerif", Font.ITALIC, 11));
@@ -82,7 +79,6 @@ public class ManualSearchDialog extends JDialog {
         bottomPanel.add(buttonRow, BorderLayout.EAST);
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // ── Wiring ───────────────────────────────────────────────────────────
         searchButton.addActionListener(e -> performSearch());
         searchField.addActionListener(e -> performSearch());
 
@@ -92,7 +88,6 @@ public class ManualSearchDialog extends JDialog {
             }
         });
 
-        // Double-click accepts immediately
         resultList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -107,7 +102,6 @@ public class ManualSearchDialog extends JDialog {
 
         getRootPane().setDefaultButton(searchButton);
 
-        // Kick off search straight away when there is a meaningful initial query
         if (initialQuery != null && !initialQuery.isBlank()) {
             performSearch();
         }
@@ -122,37 +116,33 @@ public class ManualSearchDialog extends JDialog {
         listModel.clear();
         statusLabel.setText("Suche läuft…");
 
-        SwingWorker<List<SeriesMatch>, Void> worker = new SwingWorker<>() {
+        SwingWorker<List<MovieMatch>, Void> worker = new SwingWorker<>() {
             @Override
-            protected List<SeriesMatch> doInBackground() throws Exception {
-                return client.searchSeries(query, null).get();
+            protected List<MovieMatch> doInBackground() throws Exception {
+                return client.searchMovie(query, null).get();
             }
 
             @Override
             protected void done() {
                 searchButton.setEnabled(true);
                 try {
-                    List<SeriesMatch> results = get();
+                    List<MovieMatch> results = get();
                     listModel.clear();
-                    for (SeriesMatch sm : results) {
-                        listModel.addElement(sm);
+                    for (MovieMatch mm : results) {
+                        listModel.addElement(mm);
                     }
                     if (results.isEmpty()) {
                         statusLabel.setText("Keine Ergebnisse für: \"" + query + "\"");
                     } else {
                         statusLabel.setText(results.size() + " Ergebnis(se) gefunden.");
-                        // If we have an initial selected candidate, try to pre-select it
                         if (initialSelected != null) {
                             int found = -1;
                             for (int i = 0; i < results.size(); i++) {
-                                if (results.get(i).getId() == initialSelected.getId()) {
-                                    found = i; break;
-                                }
+                                if (results.get(i).getId() == initialSelected.getId()) { found = i; break; }
                             }
                             if (found >= 0) {
                                 resultList.setSelectedIndex(found);
                             } else {
-                                // Insert candidate at top so user sees the likely match
                                 listModel.add(0, initialSelected);
                                 resultList.setSelectedIndex(0);
                             }
@@ -177,31 +167,24 @@ public class ManualSearchDialog extends JDialog {
         }
     }
 
-    /**
-     * Displays the dialog and blocks until the user accepts or cancels.
-     *
-     * @return the selected {@link SeriesMatch}, or {@code null} if cancelled
-     */
-    public SeriesMatch showAndWait() {
-        setVisible(true); // blocks
+    public MovieMatch showAndWait() {
+        setVisible(true);
         return selectedMatch;
     }
 
-    // ── Cell renderer showing name + year + overview snippet ──────────────────
-    private static class SeriesMatchRenderer extends DefaultListCellRenderer {
+    private static class MovieMatchRenderer extends DefaultListCellRenderer {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value,
                 int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (value instanceof SeriesMatch sm) {
-                String year = sm.getFirstAirYear() != null && !sm.getFirstAirYear().isEmpty()
-                        ? " (" + sm.getFirstAirYear() + ")" : "";
-                String overview = sm.getOverview() != null && !sm.getOverview().isBlank()
-                        ? " — " + (sm.getOverview().length() > 80
-                                ? sm.getOverview().substring(0, 80) + "…"
-                                : sm.getOverview())
+            if (value instanceof MovieMatch mm) {
+                String year = mm.getYear() != null && !mm.getYear().isEmpty() ? " (" + mm.getYear() + ")" : "";
+                String overview = mm.getOverview() != null && !mm.getOverview().isBlank()
+                        ? " — " + (mm.getOverview().length() > 80
+                                ? mm.getOverview().substring(0, 80) + "…"
+                                : mm.getOverview())
                         : "";
-                setText("<html><b>" + sm.getName() + "</b>" + year + "<br>"
+                setText("<html><b>" + mm.getTitle() + "</b>" + year + "<br>"
                         + "<small style='color:gray'>" + overview + "</small></html>");
             }
             return this;
