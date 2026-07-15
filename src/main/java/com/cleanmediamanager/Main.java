@@ -1,5 +1,6 @@
 package com.cleanmediamanager;
 
+import com.cleanmediamanager.smb.SmbConnectionRegistry;
 import com.cleanmediamanager.ui.MainWindow;
 import javax.swing.SwingUtilities;
 
@@ -9,6 +10,7 @@ public class Main {
         // window matches StartupWMClass in the .desktop file – required for
         // GNOME/Ubuntu to display the correct taskbar icon.
         System.setProperty("sun.awt.appName", "CleanMediaManager");
+        Runtime.getRuntime().addShutdownHook(new Thread(SmbConnectionRegistry::closeAll));
         SwingUtilities.invokeLater(MainWindow::new);
     }
 }

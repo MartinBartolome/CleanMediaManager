@@ -11,6 +11,8 @@ import com.cleanmediamanager.model.MatchStatus;
 import com.cleanmediamanager.model.MediaFile;
 import com.cleanmediamanager.model.MediaType;
 import com.cleanmediamanager.model.SeriesMatch;
+import com.cleanmediamanager.smb.SmbCredentials;
+import com.cleanmediamanager.smb.SmbFileSystem;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -71,16 +73,25 @@ public class Controller {
     }
 
     public void loadFiles(List<File> files) {
+        loadPaths(files.stream().map(File::toPath).collect(Collectors.toList()));
+    }
+
+    /**
+     * Scans the given paths for media files. Unlike {@link #loadFiles(List)}, this
+     * accepts any {@link Path} implementation, including SMB network locations that
+     * are addressed directly over the network (no local mount required).
+     */
+    public void loadPaths(List<Path> paths) {
         List<MediaFile> loaded = new ArrayList<>();
-        for (File f : files) {
+        for (Path p : paths) {
             try {
-                if (f.isDirectory()) {
-                    loaded.addAll(fileScanner.scan(f.toPath()));
-                } else if (f.isFile()) {
-                    loaded.addAll(fileScanner.scanFile(f.toPath()));
+                if (Files.isDirectory(p)) {
+                    loaded.addAll(fileScanner.scan(p));
+                } else if (Files.isRegularFile(p)) {
+                    loaded.addAll(fileScanner.scanFile(p));
                 }
             } catch (Exception e) {
-                log("[ERROR] Failed to scan: " + f.getPath() + " - " + e.getMessage());
+                log("[ERROR] Failed to scan: " + p + " - " + e.getMessage());
             }
         }
 
@@ -404,81 +415,141 @@ public class Controller {
     }
 
     public void onOpenNetworkPathClicked() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
-        panel.add(new JLabel("Netzwerkpfad eingeben:"), BorderLayout.NORTH);
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
 
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        panel.add(new JLabel("Netzwerkpfad (z. B. smb://server/share/Ordner):"), gbc);
+
+        gbc.gridy = 1;
         JTextField pathField = new JTextField("smb://", 40);
-        panel.add(pathField, BorderLayout.CENTER);
+        panel.add(pathField, gbc);
 
-        JLabel hint = new JLabel("<html><small>Beispiele:&nbsp; smb://server/share &nbsp;|&nbsp; //server/share &nbsp;|&nbsp; /mnt/nas</small></html>");
-        panel.add(hint, BorderLayout.SOUTH);
+        gbc.gridwidth = 1;
+        gbc.gridy = 2;
+        panel.add(new JLabel("Benutzername:"), gbc);
+        gbc.gridx = 1;
+        JTextField userField = new JTextField(20);
+        panel.add(userField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 3;
+        panel.add(new JLabel("Passwort:"), gbc);
+        gbc.gridx = 1;
+        JPasswordField passField = new JPasswordField(20);
+        panel.add(passField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 4;
+        panel.add(new JLabel("Domain (optional):"), gbc);
+        gbc.gridx = 1;
+        JTextField domainField = new JTextField(20);
+        panel.add(domainField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
+        panel.add(new JLabel("<html><small>Leer lassen für anonymen Gast-Zugriff.<br>" +
+                "Die Freigabe wird direkt über das Netzwerk angesprochen \u2013 " +
+                "ein Einbinden als Netzlaufwerk ist nicht nötig.</small></html>"), gbc);
 
         int result = JOptionPane.showConfirmDialog(mainWindow.getFrame(), panel,
-                "Netzwerkpfad öffnen", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                "Netzwerkpfad öffnen (SMB)", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result != JOptionPane.OK_OPTION) return;
 
         String input = pathField.getText().trim();
         if (input.isBlank()) return;
 
-        Path resolved = resolveNetworkPath(input);
-        if (resolved == null || !Files.exists(resolved)) {
-            log("[ERROR] Pfad nicht gefunden oder nicht erreichbar: " + input);
+        if (!input.startsWith("smb://")) {
+            Path resolved = resolveLocalPath(input);
+            if (resolved == null || !Files.exists(resolved)) {
+                log("[ERROR] Pfad nicht gefunden oder nicht erreichbar: " + input);
+                JOptionPane.showMessageDialog(mainWindow.getFrame(),
+                        "Pfad nicht erreichbar:\n" + input,
+                        "Pfad nicht gefunden", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            loadPaths(List.of(resolved));
+            return;
+        }
+
+        SmbTarget target;
+        try {
+            target = parseSmbUri(input);
+        } catch (Exception e) {
             JOptionPane.showMessageDialog(mainWindow.getFrame(),
-                    "Pfad nicht erreichbar:\n" + input +
-                    "\n\nBitte sicherstellen, dass das Netzlaufwerk eingebunden ist.",
+                    "Ungültiger Netzwerkpfad:\n" + input + "\n" + e.getMessage(),
+                    "Ungültiger Pfad", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String username = !userField.getText().isBlank() ? userField.getText().trim() : target.username();
+        char[] password = passField.getPassword();
+        String domain = domainField.getText().trim();
+        SmbCredentials credentials = new SmbCredentials(target.host(), target.port(), target.share(), domain, username, password);
+
+        log("[INFO] Verbinde mit \\\\" + target.host() + "\\" + target.share() + " ...");
+        SmbFileSystem fs;
+        try {
+            fs = SmbFileSystem.connect(credentials);
+        } catch (IOException e) {
+            log("[ERROR] SMB-Verbindung fehlgeschlagen: " + e.getMessage());
+            JOptionPane.showMessageDialog(mainWindow.getFrame(),
+                    "Verbindung fehlgeschlagen:\n" + e.getMessage() +
+                    "\n\nBitte Server-Adresse, Freigabename sowie Benutzername/Passwort prüfen.",
+                    "SMB-Verbindung fehlgeschlagen", JOptionPane.ERROR_MESSAGE);
+            return;
+        } finally {
+            java.util.Arrays.fill(password, '\0');
+        }
+
+        Path root = fs.getPath(target.subPath());
+        if (!Files.exists(root)) {
+            log("[ERROR] Pfad auf der Freigabe nicht gefunden: " + target.subPath());
+            JOptionPane.showMessageDialog(mainWindow.getFrame(),
+                    "Der Ordner \"" + target.subPath() + "\" wurde auf der Freigabe \\\\" +
+                    target.host() + "\\" + target.share() + " nicht gefunden.",
                     "Pfad nicht gefunden", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        loadFiles(List.of(resolved.toFile()));
+        log("[INFO] Verbunden mit \\\\" + target.host() + "\\" + target.share() +
+                ". Lade Dateien direkt über das Netzwerk...");
+        loadPaths(List.of(root));
     }
 
-    private Path resolveNetworkPath(String input) {
-        if (input.startsWith("smb://")) {
-            Path gvfs = tryResolveViaGvfs(input);
-            if (gvfs != null) return gvfs;
-        }
+    private Path resolveLocalPath(String input) {
         if (input.startsWith("file://")) {
             try { return Paths.get(URI.create(input)); } catch (Exception ignored) {}
         }
         try { return Paths.get(input); } catch (Exception e) { return null; }
     }
 
-    /**
-     * Resolves an smb:// URI to the local gvfs mount point.
-     * On Linux, gvfs mounts SMB shares under
-     * /run/user/&lt;uid&gt;/gvfs/smb-share:server=&lt;host&gt;,share=&lt;share&gt;
-     */
-    private Path tryResolveViaGvfs(String smbUri) {
-        try {
-            String normalized = smbUri.endsWith("/") ? smbUri.substring(0, smbUri.length() - 1) : smbUri;
-            URI uri = URI.create(normalized);
-            String host = uri.getHost();
-            if (host == null || host.isBlank()) return null;
+    private record SmbTarget(String host, int port, String share, String subPath, String username) {}
 
-            String uriPath = uri.getPath() != null ? uri.getPath() : "";
-            String[] parts = uriPath.split("/", 3);
-            String share = parts.length > 1 ? parts[1] : "";
-            String subPath = parts.length > 2 ? parts[2] : "";
-
-            for (String base : new String[]{"/run/user", "/var/run/user"}) {
-                Path runUser = Paths.get(base);
-                if (!Files.isDirectory(runUser)) continue;
-                try (var stream = Files.list(runUser)) {
-                    Optional<Path> mountPoint = stream
-                            .map(uidDir -> uidDir.resolve("gvfs/smb-share:server=" + host + ",share=" + share))
-                            .filter(Files::isDirectory)
-                            .findFirst();
-                    if (mountPoint.isPresent()) {
-                        Path mp = mountPoint.get();
-                        return subPath.isEmpty() ? mp : mp.resolve(subPath);
-                    }
-                } catch (IOException ignored) {}
-            }
-        } catch (Exception e) {
-            log("[WARN] gvfs-Auflösung fehlgeschlagen: " + e.getMessage());
+    /** Parses an {@code smb://[user@]host[:port]/share/sub/path} URI into its components. */
+    private SmbTarget parseSmbUri(String input) {
+        String normalized = input.endsWith("/") ? input.substring(0, input.length() - 1) : input;
+        URI uri = URI.create(normalized);
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("Kein Servername gefunden (erwartet: smb://server/share/...)");
         }
-        return null;
+        int port = uri.getPort() > 0 ? uri.getPort() : 445;
+        String uriPath = uri.getPath() != null ? uri.getPath() : "";
+        String[] parts = uriPath.split("/", 3);
+        String share = parts.length > 1 ? parts[1] : "";
+        if (share.isBlank()) {
+            throw new IllegalArgumentException("Kein Freigabename gefunden (erwartet: smb://server/share/...)");
+        }
+        String subPath = parts.length > 2 ? parts[2] : "";
+        String username = "";
+        String userInfo = uri.getUserInfo();
+        if (userInfo != null && !userInfo.isBlank()) {
+            int colon = userInfo.indexOf(':');
+            username = colon >= 0 ? userInfo.substring(0, colon) : userInfo;
+        }
+        return new SmbTarget(host, port, share, subPath, username);
     }
 
     public void onModeChanged(String mode) {
