@@ -88,7 +88,8 @@ public class FilenameFormatDialog extends JDialog {
     }
 
     private JPanel buildHintPanelForEpisode() {
-        String html = "<html>Platzhalter: <b>{series}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
+        String html = "<html>Platzhalter: <b>{series}</b>, <b>{year}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
+                "{year} ist das Erstausstrahlungsjahr der Serie.<br>" +
                 "Padding: {season:02d} erzeugt z.B. '01' für Staffel 1.<br>" +
                 "Beispiel-Template: {series} - S{season:02d}E{episode:02d} - {title}{ext}<br>" +
                 "Jellyfin-Format: {series} ({year}) {imdbid} - S{season:02d}E{episode:02d}{ext}</html>";
@@ -136,6 +137,7 @@ public class FilenameFormatDialog extends JDialog {
                 .replace("{ext}", ".mkv");
         String sampleEpisode = episodeTemplate
                 .replace("{series}", "Meine Serie")
+                .replace("{year}", "2020")
                 .replace("{season}", "1")
                 .replace("{episode}", "2")
                 .replace("{title}", "Pilotfolge")

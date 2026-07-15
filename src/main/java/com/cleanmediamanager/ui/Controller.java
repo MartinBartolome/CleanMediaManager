@@ -301,12 +301,16 @@ public class Controller {
         fmt.add(episodePreview, fgbc);
 
         fgbc.gridx = 0; fgbc.gridy = 4; fgbc.gridwidth = 2; fgbc.weightx = 1;
-        String movieHint = "<html>Placeholders: <b>{title}</b>, <b>{year}</b>, <b>{ext}</b><br>" +
+        String movieHint = "<html>Placeholders: <b>{title}</b>, <b>{year}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
             "Example: {title} ({year}){ext}  →  'My Movie (2020).mkv'<br>" +
+            "{imdbid} and {tmdbid} already include the brackets and are filled automatically from TMDB after matching.<br>" +
+            "Example: {title} ({year}) {imdbid}{ext}  →  'Movie (2021) [imdbid-tt12801262].mkv'<br>" +
             "You can include a single '/' to rename the parent folder and file: e.g. {title}/{title}{ext} (only one folder level).</html>";
-        String episodeHint = "<html>Placeholders: <b>{series}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{ext}</b><br>" +
+        String episodeHint = "<html>Placeholders: <b>{series}</b>, <b>{year}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
+            "{year} is the series' first air year.<br>" +
             "Padding: use e.g. {season:02d} to get '01' for season 1.<br>" +
-            "Example: {series} - S{season:02d}E{episode:02d} - {title}{ext}</html>";
+            "Example: {series} - S{season:02d}E{episode:02d} - {title}{ext}<br>" +
+            "With year and IMDB id: {series} ({year}) {imdbid} - S{season:02d}E{episode:02d} - {title}{ext}</html>";
         JLabel hintPanel = new JLabel(movieHint + "<hr>" + episodeHint);
         fmt.add(hintPanel, fgbc);
 
@@ -315,13 +319,18 @@ public class Controller {
                 Map<String,String> movieVals = new HashMap<>();
                 movieVals.put("title", "Sample Movie");
                 movieVals.put("year", "2020");
+                movieVals.put("tmdbid", "[tmdbid-12345]");
+                movieVals.put("imdbid", "[imdbid-tt1280126]");
                 movieVals.put("ext", ".mkv");
 
                 Map<String,String> epVals = new HashMap<>();
                 epVals.put("series", "My Series");
+                epVals.put("year", "2020");
                 epVals.put("season", "1");
                 epVals.put("episode", "2");
                 epVals.put("title", "Pilot");
+                epVals.put("tmdbid", "[tmdbid-67890]");
+                epVals.put("imdbid", "[imdbid-tt7654321]");
                 epVals.put("ext", ".mkv");
 
                 moviePreview.setText(applySampleTemplate(movieField.getText(), movieVals));

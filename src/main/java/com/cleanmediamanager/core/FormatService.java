@@ -44,6 +44,7 @@ public class FormatService {
         String template = node.get("format.episode", "{series} - S{season:02d}E{episode:02d} - {title}{ext}");
         Map<String,String> ctx = new HashMap<>();
         ctx.put("series", sanitizeFilename(series.getName()));
+        ctx.put("year", series.getFirstAirYear() == null ? "" : series.getFirstAirYear());
         ctx.put("season", String.valueOf(episode.getSeason()));
         ctx.put("episode", String.valueOf(episode.getEpisodeNumber()));
         ctx.put("title", sanitizeFilename(episode.getName()));
