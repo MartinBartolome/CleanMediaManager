@@ -52,14 +52,44 @@ public class TmdbClient {
             Thread.currentThread().interrupt();
             return CompletableFuture.failedFuture(e);
         }
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .timeout(Duration.ofSeconds(15))
+                .header("Accept", "application/json");
+        String finalUrl = url;
+        // TMDB now issues "API Read Access Token" (v4 auth, a JWT) to new accounts.
+        // That token is not valid as an '?api_key=' query parameter and must instead
+        // be sent as an Authorization: Bearer header.
+        if (isV4Token(apiKey)) {
+            finalUrl = stripApiKeyParam(url);
+            builder.header("Authorization", "Bearer " + apiKey);
+        }
+        HttpRequest request = builder
+                .uri(URI.create(finalUrl))
                 .GET()
                 .build();
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(HttpResponse::body)
                 .whenComplete((body, ex) -> semaphore.release());
+    }
+
+    /** Detects TMDB v4 "API Read Access Token" values, which are JWTs (three dot-separated segments). */
+    private static boolean isV4Token(String key) {
+        return key != null && key.startsWith("eyJ") && key.chars().filter(c -> c == '.').count() >= 2;
+    }
+
+    /** Removes an 'api_key=...' query parameter from a URL (used when authenticating via header instead). */
+    private static String stripApiKeyParam(String url) {
+        int qIdx = url.indexOf('?');
+        if (qIdx < 0) return url;
+        String base = url.substring(0, qIdx);
+        String query = url.substring(qIdx + 1);
+        StringBuilder sb = new StringBuilder();
+        for (String part : query.split("&")) {
+            if (part.startsWith("api_key=")) continue;
+            if (sb.length() > 0) sb.append('&');
+            sb.append(part);
+        }
+        return sb.length() > 0 ? base + "?" + sb : base;
     }
 
     public CompletableFuture<List<MovieMatch>> searchMovie(String title, String year) {
