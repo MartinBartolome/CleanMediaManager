@@ -761,4 +761,46 @@ public class TmdbClient {
         return uniq;
     }
 
+    /**
+     * Fetches the IMDB ID for a movie from TMDB external IDs endpoint.
+     */
+    public CompletableFuture<String> getMovieImdbId(int tmdbId) {
+        if (apiKey == null || apiKey.isBlank() || tmdbId <= 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        String url = BASE_URL + "/movie/" + tmdbId + "/external_ids?api_key=" + apiKey;
+        return throttledGet(url)
+                .thenApply(body -> {
+                    try {
+                        JSONObject json = new JSONObject(body);
+                        String imdbId = json.optString("imdb_id", null);
+                        return (imdbId != null && !imdbId.isBlank()) ? imdbId : null;
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
+                .exceptionally(ex -> null);
+    }
+
+    /**
+     * Fetches the IMDB ID for a TV series from TMDB external IDs endpoint.
+     */
+    public CompletableFuture<String> getSeriesImdbId(int tmdbId) {
+        if (apiKey == null || apiKey.isBlank() || tmdbId <= 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        String url = BASE_URL + "/tv/" + tmdbId + "/external_ids?api_key=" + apiKey;
+        return throttledGet(url)
+                .thenApply(body -> {
+                    try {
+                        JSONObject json = new JSONObject(body);
+                        String imdbId = json.optString("imdb_id", null);
+                        return (imdbId != null && !imdbId.isBlank()) ? imdbId : null;
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
+                .exceptionally(ex -> null);
+    }
+
 }

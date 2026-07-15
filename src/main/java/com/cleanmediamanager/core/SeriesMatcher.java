@@ -75,7 +75,11 @@ public class SeriesMatcher {
                             return CompletableFuture.completedFuture(null);
                         }
                         group.forEach(f -> f.setSeriesMatch(series));
-                        return matchGroupBySeason(group, series, onFileUpdated);
+                        return tmdbClient.getSeriesImdbId(series.getId())
+                                .thenCompose(imdbId -> {
+                                    if (imdbId != null) series.setImdbId(imdbId);
+                                    return matchGroupBySeason(group, series, onFileUpdated);
+                                });
                     })
                     .exceptionally(ex -> {
                         group.forEach(f -> {

@@ -44,8 +44,13 @@ public class MovieMatcher {
                         file.setMatchScore(score);
                         if (score >= MatchScorer.DEFAULT_THRESHOLD) {
                             file.setStatus(MatchStatus.MATCHED);
-                            String newName = formatService.format(file, best);
-                            file.setNewName(newName);
+                            return tmdbClient.getMovieImdbId(best.getId())
+                                    .thenAccept(imdbId -> {
+                                        if (imdbId != null) best.setImdbId(imdbId);
+                                        String newName = formatService.format(file, best);
+                                        file.setNewName(newName);
+                                        if (onFileUpdated != null) onFileUpdated.accept(file);
+                                    });
                         } else {
                             file.setStatus(MatchStatus.UNMATCHED);
                         }
@@ -63,7 +68,7 @@ public class MovieMatcher {
                                 String folderYear = folderParsed.getYear();
                                 String useYear = folderYear != null ? folderYear : year;
                                 return tmdbClient.searchMovie(folderTitle, useYear)
-                                        .thenAccept(fm -> {
+                                        .thenCompose(fm -> {
                                             if (fm != null && !fm.isEmpty()) {
                                                 MovieMatch best = fm.get(0);
                                                 double score = scorer.scoreMovie(folderTitle, useYear, best);
@@ -71,8 +76,13 @@ public class MovieMatcher {
                                                 file.setMatchScore(score);
                                                 if (score >= MatchScorer.DEFAULT_THRESHOLD) {
                                                     file.setStatus(MatchStatus.MATCHED);
-                                                    String newName = formatService.format(file, best);
-                                                    file.setNewName(newName);
+                                                    return tmdbClient.getMovieImdbId(best.getId())
+                                                            .thenAccept(imdbId -> {
+                                                                if (imdbId != null) best.setImdbId(imdbId);
+                                                                String newName = formatService.format(file, best);
+                                                                file.setNewName(newName);
+                                                                if (onFileUpdated != null) onFileUpdated.accept(file);
+                                                            });
                                                 } else {
                                                     file.setStatus(MatchStatus.UNMATCHED);
                                                 }
@@ -80,6 +90,7 @@ public class MovieMatcher {
                                                 file.setStatus(MatchStatus.UNMATCHED);
                                             }
                                             if (onFileUpdated != null) onFileUpdated.accept(file);
+                                            return CompletableFuture.<Void>completedFuture(null);
                                         });
                             }
                         }

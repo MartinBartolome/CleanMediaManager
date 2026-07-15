@@ -78,8 +78,8 @@ public class FilenameFormatDialog extends JDialog {
     }
 
     private JPanel buildHintPanelForMovie() {
-        String html = "<html>Platzhalter: <b>{title}</b>, <b>{year}</b>, <b>{ext}</b><br>" +
-                "Beispiele: {title} ({year}){ext}  →  'Die Sendung (2020).mkv'<br>" +
+        String html = "<html>Platzhalter: <b>{title}</b>, <b>{year}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
+                "Beispiele: {title} ({year}) {imdbid}{ext}  →  'Die Sendung (2020) [imdbid-tt12345].mkv'<br>" +
                 "Sie können numerische Padding-Angaben verwenden: z.B. {season:02d}</html>";
         JLabel l = new JLabel(html);
         JPanel p = new JPanel(new BorderLayout());
@@ -88,9 +88,10 @@ public class FilenameFormatDialog extends JDialog {
     }
 
     private JPanel buildHintPanelForEpisode() {
-        String html = "<html>Platzhalter: <b>{series}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{ext}</b><br>" +
+        String html = "<html>Platzhalter: <b>{series}</b>, <b>{season}</b>, <b>{episode}</b>, <b>{title}</b>, <b>{tmdbid}</b>, <b>{imdbid}</b>, <b>{ext}</b><br>" +
                 "Padding: {season:02d} erzeugt z.B. '01' für Staffel 1.<br>" +
-                "Beispiel-Template: {series} - S{season:02d}E{episode:02d} - {title}{ext}</html>";
+                "Beispiel-Template: {series} - S{season:02d}E{episode:02d} - {title}{ext}<br>" +
+                "Jellyfin-Format: {series} ({year}) {imdbid} - S{season:02d}E{episode:02d}{ext}</html>";
         JLabel l = new JLabel(html);
         JPanel p = new JPanel(new BorderLayout());
         p.add(l, BorderLayout.CENTER);
@@ -130,12 +131,16 @@ public class FilenameFormatDialog extends JDialog {
         String sampleMovie = movieTemplate
                 .replace("{title}", "Die große Reise")
                 .replace("{year}", "2021")
+                .replace("{tmdbid}", "[tmdbid-12345]")
+                .replace("{imdbid}", "[imdbid-tt1234567]")
                 .replace("{ext}", ".mkv");
         String sampleEpisode = episodeTemplate
                 .replace("{series}", "Meine Serie")
                 .replace("{season}", "1")
                 .replace("{episode}", "2")
                 .replace("{title}", "Pilotfolge")
+                .replace("{tmdbid}", "[tmdbid-67890]")
+                .replace("{imdbid}", "[imdbid-tt7654321]")
                 .replace("{ext}", ".mkv");
         // rudimentary padding handling for preview
         sampleEpisode = sampleEpisode.replaceAll("\\{season:02d\\}", "01");

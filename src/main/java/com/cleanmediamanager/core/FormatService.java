@@ -21,6 +21,8 @@ public class FormatService {
         Map<String,String> ctx = new HashMap<>();
         ctx.put("title", sanitizeFilename(match.getTitle()));
         ctx.put("year", match.getYear() == null ? "" : match.getYear());
+        ctx.put("tmdbid", match.getId() > 0 ? "[tmdbid-" + match.getId() + "]" : "");
+        ctx.put("imdbid", match.getImdbId() != null && !match.getImdbId().isBlank() ? "[imdbid-" + match.getImdbId() + "]" : "");
         ctx.put("ext", getExtension(file.getOriginalName()));
         return applyTemplate(template, ctx);
     }
@@ -45,6 +47,8 @@ public class FormatService {
         ctx.put("season", String.valueOf(episode.getSeason()));
         ctx.put("episode", String.valueOf(episode.getEpisodeNumber()));
         ctx.put("title", sanitizeFilename(episode.getName()));
+        ctx.put("tmdbid", series.getId() > 0 ? "[tmdbid-" + series.getId() + "]" : "");
+        ctx.put("imdbid", series.getImdbId() != null && !series.getImdbId().isBlank() ? "[imdbid-" + series.getImdbId() + "]" : "");
         ctx.put("ext", getExtension(file.getOriginalName()));
         return applyTemplate(template, ctx);
     }

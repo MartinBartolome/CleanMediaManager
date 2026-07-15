@@ -5,6 +5,7 @@ public class SeriesMatch {
     private final String name;
     private final String firstAirYear;
     private final String overview;
+    private String imdbId;
 
     public SeriesMatch(int id, String name, String firstAirYear, String overview) {
         this.id = id;
@@ -17,6 +18,8 @@ public class SeriesMatch {
     public String getName() { return name; }
     public String getFirstAirYear() { return firstAirYear; }
     public String getOverview() { return overview; }
+    public String getImdbId() { return imdbId; }
+    public void setImdbId(String imdbId) { this.imdbId = imdbId; }
 
     @Override
     public String toString() {
