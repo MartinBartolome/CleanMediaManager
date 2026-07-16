@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 
-public class TmdbClient {
+public class TmdbClient implements MetadataProvider {
 
     private static final String BASE_URL = "https://api.themoviedb.org/3";
     // TMDB allows ~40 requests/10 s; keep concurrent requests well below that.
@@ -186,10 +186,12 @@ public class TmdbClient {
                         }
                         return acc;
                     })
-                    // Fallback: search English 'en-US' for the first token and filter by mapped keywords
+                    // Fallback: search English 'en-US' for the first token and filter by mapped keywords.
+                    // The internal query/filtering needs English text, but the returned matches are
+                    // re-localized to the configured display language afterwards (see localizeMovies).
                     .thenCompose(list -> {
                         if (!list.isEmpty()) return CompletableFuture.completedFuture(list);
-                        return searchByTokenWithKeywords(trimmed);
+                        return searchByTokenWithKeywords(trimmed).thenCompose(this::localizeMovies);
                     })
                     // Try translated English phrase (simple German->English token map)
                     .thenCompose(list -> {
@@ -202,7 +204,8 @@ public class TmdbClient {
                                         if (!l.isEmpty()) return CompletableFuture.completedFuture(l);
                                         tried.add(makeSearchMultiUrl(eng, "en-US", true));
                                         return searchMultiForMovies(eng, "en-US");
-                                    });
+                                    })
+                                    .thenCompose(this::localizeMovies);
                         }
                         return CompletableFuture.completedFuture(list);
                     })
@@ -293,6 +296,42 @@ public class TmdbClient {
             System.err.println("[TmdbClient] Failed to parse API response: " + e.getMessage());
         }
         return results;
+    }
+
+    /**
+     * Re-fetches title/overview of each match in the client's configured display language.
+     * Used after English-only fallback searches (which need English text to match/filter
+     * candidates) so the final results still honor the user's selected language instead of
+     * silently staying in English. No-op when the configured language already is English.
+     */
+    private CompletableFuture<List<MovieMatch>> localizeMovies(List<MovieMatch> matches) {
+        if (matches == null || matches.isEmpty() || language == null || language.isBlank()
+                || language.toLowerCase(java.util.Locale.ROOT).startsWith("en")) {
+            return CompletableFuture.completedFuture(matches);
+        }
+        List<CompletableFuture<MovieMatch>> futures = new ArrayList<>();
+        for (MovieMatch m : matches) futures.add(fetchLocalizedMovie(m));
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> futures.stream().map(CompletableFuture::join).collect(java.util.stream.Collectors.toList()));
+    }
+
+    private CompletableFuture<MovieMatch> fetchLocalizedMovie(MovieMatch original) {
+        if (apiKey == null || apiKey.isBlank() || original.getId() <= 0) {
+            return CompletableFuture.completedFuture(original);
+        }
+        String url = BASE_URL + "/movie/" + original.getId() + "?api_key=" + apiKey + "&language=" + language;
+        return throttledGet(url)
+                .thenApply(body -> {
+                    try {
+                        JSONObject json = new JSONObject(body);
+                        String title = json.optString("title", original.getTitle());
+                        String overview = json.optString("overview", original.getOverview());
+                        return new MovieMatch(original.getId(), title, original.getYear(), overview);
+                    } catch (Exception e) {
+                        return original;
+                    }
+                })
+                .exceptionally(ex -> original);
     }
 
     /** Try a focused English search for the first token and filter results by keywords (German->English map). */

@@ -1,6 +1,6 @@
 package com.cleanmediamanager.ui;
 
-import com.cleanmediamanager.api.TmdbClient;
+import com.cleanmediamanager.api.MetadataProvider;
 import com.cleanmediamanager.model.MovieMatch;
 
 import javax.swing.*;
@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutionException;
  */
 public class MovieManualSearchDialog extends JDialog {
 
-    private final TmdbClient client;
+    private final MetadataProvider client;
     private MovieMatch selectedMatch = null;
     private final MovieMatch initialSelected;
 
@@ -28,7 +28,7 @@ public class MovieManualSearchDialog extends JDialog {
     private final JButton okButton;
     private final JLabel statusLabel;
 
-    public MovieManualSearchDialog(JFrame parent, TmdbClient client, String initialQuery, String initialFilename, MovieMatch initialSelected) {
+    public MovieManualSearchDialog(JFrame parent, MetadataProvider client, String initialQuery, String initialFilename, MovieMatch initialSelected) {
         super(parent, "Manuell suchen (Film)", true);
         this.client = client;
         this.initialSelected = initialSelected;

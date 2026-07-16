@@ -1,5 +1,7 @@
 package com.cleanmediamanager.ui;
 
+import com.cleanmediamanager.api.ImdbClient;
+import com.cleanmediamanager.api.MetadataProvider;
 import com.cleanmediamanager.api.TmdbClient;
 import com.cleanmediamanager.core.FileScanner;
 import com.cleanmediamanager.core.FilenameParser;
@@ -37,6 +39,9 @@ public class Controller {
 
     private static final String PREF_API_KEY = "tmdb_api_key";
     private static final String PREF_LANGUAGE = "tmdb_language";
+    private static final String PREF_PROVIDER = "metadata_provider";
+    private static final String PROVIDER_TMDB = "TMDB";
+    private static final String PROVIDER_IMDB = "IMDB";
 
     private final MainWindow mainWindow;
     private final FileScanner fileScanner;
@@ -129,8 +134,7 @@ public class Controller {
             return;
         }
 
-        String apiKey = prefs.get(PREF_API_KEY, "");
-        if (apiKey.isBlank()) {
+        if (isTmdbProvider() && prefs.get(PREF_API_KEY, "").isBlank()) {
             log("[WARN] TMDB API key not configured. Open Settings to add your API key.");
             int choice = JOptionPane.showConfirmDialog(mainWindow.getFrame(),
                     "TMDB API key is not configured.\nWould you like to open Settings now?",
@@ -141,8 +145,7 @@ public class Controller {
             return;
         }
 
-        String language = prefs.get(PREF_LANGUAGE, "en-US");
-        TmdbClient client = new TmdbClient(apiKey, language);
+        MetadataProvider client = createProvider();
 
         log("[INFO] Starting matching for " + mediaFiles.size() + " file(s)...");
         mainWindow.setMatchButtonEnabled(false);
@@ -253,9 +256,9 @@ public class Controller {
 
     public void onSettingsButtonClicked() {
         String currentKey = prefs.get(PREF_API_KEY, "");
-        String currentLang = prefs.get(PREF_LANGUAGE, "en-US");
 
-        // General settings panel (API key, language)
+        // General settings panel: just the API key, relevant only when TMDB is
+        // selected as metadata source (chosen via the "DB" dropdown on the main toolbar).
         JPanel general = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4, 4, 4, 4);
@@ -265,18 +268,13 @@ public class Controller {
         general.add(new JLabel("TMDB API Key:"), gbc);
         gbc.gridx = 1;
         JPasswordField keyField = new JPasswordField(currentKey, 30);
+        keyField.setEnabled(isTmdbProvider());
         general.add(keyField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 1;
-        general.add(new JLabel("Language:"), gbc);
-        gbc.gridx = 1;
-        String[] languages = {"en-US", "de-DE", "fr-FR", "es-ES", "ja-JP"};
-        JComboBox<String> langCombo = new JComboBox<>(languages);
-        langCombo.setSelectedItem(currentLang);
-        general.add(langCombo, gbc);
-
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
-        JLabel hint = new JLabel("<html><small>Get a free API key at <a href='#'>themoviedb.org</a></small></html>");
+        gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 2;
+        JLabel hint = new JLabel("<html><small>Nur nötig, wenn oben rechts im Toolbar unter „DB“ <b>TMDB</b> ausgewählt ist – " +
+            "kostenlosen Key auf <a href='#'>themoviedb.org</a> anlegen.<br>" +
+            "Bei <b>IMDB</b> wird kein Key benötigt (öffentliche IMDb-Suche); Episodentitel bleiben dabei leer.</small></html>");
         general.add(hint, gbc);
 
         // Filename format panel (moved into Settings as a new tab)
@@ -364,9 +362,7 @@ public class Controller {
 
         if (result == JOptionPane.OK_OPTION) {
             String newKey = new String(keyField.getPassword()).trim();
-            String newLang = (String) langCombo.getSelectedItem();
             prefs.put(PREF_API_KEY, newKey);
-            prefs.put(PREF_LANGUAGE, newLang != null ? newLang : "en-US");
             // save formats to the shared node used by FormatService
             Preferences nodePref = Preferences.userRoot().node("com/cleanmediamanager");
             nodePref.put("format.movie", movieField.getText());
@@ -401,7 +397,6 @@ public class Controller {
                 } catch (Exception e) {
                     log("[ERROR] Failed to recompute formats: " + e.getMessage());
                 }
-            mainWindow.updateLanguageCombo(newLang != null ? newLang : "en-US");
             log("[INFO] Settings saved.");
         }
     }
@@ -412,6 +407,13 @@ public class Controller {
 
     public void onLanguageChanged(String language) {
         prefs.put(PREF_LANGUAGE, language);
+    }
+
+    /** Called when the "DB" dropdown on the main toolbar changes (TMDB vs. IMDB). */
+    public void onProviderChanged(String provider) {
+        String normalized = PROVIDER_IMDB.equalsIgnoreCase(provider) ? PROVIDER_IMDB : PROVIDER_TMDB;
+        prefs.put(PREF_PROVIDER, normalized);
+        log("[INFO] Metadaten-Quelle geändert zu: " + normalized);
     }
 
     public void onOpenNetworkPathClicked() {
@@ -582,8 +584,7 @@ public class Controller {
      * against the user-selected {@link SeriesMatch}.
      */
     public void handleManualSearch(MediaFile triggerFile) {
-        String apiKey = prefs.get(PREF_API_KEY, "");
-        if (apiKey.isBlank()) {
+        if (isTmdbProvider() && prefs.get(PREF_API_KEY, "").isBlank()) {
             log("[WARN] TMDB API key nicht konfiguriert. Bitte zuerst Einstellungen öffnen.");
             int choice = JOptionPane.showConfirmDialog(mainWindow.getFrame(),
                     "TMDB API Key nicht konfiguriert.\nEinstellungen jetzt öffnen?",
@@ -593,8 +594,7 @@ public class Controller {
         }
 
         FilenameParser parser = new FilenameParser();
-        String language = prefs.get(PREF_LANGUAGE, "en-US");
-        TmdbClient client = new TmdbClient(apiKey, language);
+        MetadataProvider client = createProvider();
 
         if (currentMode == MediaType.EPISODE) {
             // Determine the series group: all files with the same parsed title (any status)
@@ -647,7 +647,7 @@ public class Controller {
             // Movie manual search for single file
             String title = parser.parse(triggerFile.getOriginalName()).getTitle();
                     MovieManualSearchDialog dialog = new MovieManualSearchDialog(
-                        mainWindow.getFrame(), new TmdbClient(apiKey, prefs.get(PREF_LANGUAGE, "en-US")), title, triggerFile.getOriginalName(), triggerFile.getMatch());
+                        mainWindow.getFrame(), client, title, triggerFile.getOriginalName(), triggerFile.getMatch());
             com.cleanmediamanager.model.MovieMatch selected = dialog.showAndWait();
             if (selected == null) return;
             log("[INFO] Manuelles Matching: '" + selected.getTitle() + "' angewendet auf " + triggerFile.getOriginalName());
@@ -662,6 +662,21 @@ public class Controller {
 
     public void log(String message) {
         mainWindow.appendLog(message);
+    }
+
+    /** Whether the currently configured metadata provider is TMDB (as opposed to the key-free IMDb provider). */
+    private boolean isTmdbProvider() {
+        return PROVIDER_TMDB.equals(prefs.get(PREF_PROVIDER, PROVIDER_TMDB));
+    }
+
+    /** Builds the {@link MetadataProvider} configured via the toolbar's "DB" dropdown (TMDB requires an API key, IMDb does not). */
+    private MetadataProvider createProvider() {
+        String language = prefs.get(PREF_LANGUAGE, "en-US");
+        if (isTmdbProvider()) {
+            String apiKey = prefs.get(PREF_API_KEY, "");
+            return new TmdbClient(apiKey, language);
+        }
+        return new ImdbClient(language);
     }
 
     private String applySampleTemplate(String template, Map<String,String> values) {
@@ -699,8 +714,7 @@ public class Controller {
     // - For series: group by parsed title and prompt once per group
     // - For movies: prompt per file
     private void promptForLowConfidenceMatches() {
-        String apiKey = prefs.get(PREF_API_KEY, "");
-        if (apiKey.isBlank()) return;
+        if (isTmdbProvider() && prefs.get(PREF_API_KEY, "").isBlank()) return;
 
         FilenameParser parser = new FilenameParser();
 

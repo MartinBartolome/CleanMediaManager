@@ -14,7 +14,16 @@ public record SmbCredentials(String host, int port, String share, String domain,
         Objects.requireNonNull(share, "share");
         if (domain == null) domain = "";
         if (username == null) username = "";
-        if (password == null) password = new char[0];
+        // Defensively copy the password array instead of keeping the caller's
+        // reference: callers (e.g. the "Open Network Path" dialog) zero out
+        // their own char[] right after the initial connect() call for good
+        // hygiene, but these credentials are retained for the lifetime of the
+        // SmbFileSystem/connection and are re-used to transparently
+        // reconnect (e.g. after an idle SMB session drops) for every later
+        // file operation, including renames. Without this copy, that zeroing
+        // would silently turn later reconnect attempts into an empty-password
+        // login, causing STATUS_LOGON_FAILURE.
+        password = password != null ? password.clone() : new char[0];
     }
 
     /** Key identifying a reusable connection (deliberately excludes the password). */

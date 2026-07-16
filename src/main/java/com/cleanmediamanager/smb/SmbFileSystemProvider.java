@@ -117,6 +117,15 @@ public final class SmbFileSystemProvider extends FileSystemProvider {
         SmbPath smbDir = asSmbPath(dir);
         try {
             smbDir.getFileSystem().share().mkdir(smbDir.smbPath());
+        } catch (com.hierynomus.mssmb2.SMBApiException e) {
+            // Files.createDirectories() relies on FileAlreadyExistsException specifically to
+            // treat an already-existing directory as success instead of propagating an error
+            // (important when multiple files being renamed share/create the same parent
+            // folder, e.g. several episodes of the same season).
+            if (e.getStatus() == com.hierynomus.mserref.NtStatus.STATUS_OBJECT_NAME_COLLISION) {
+                throw new java.nio.file.FileAlreadyExistsException(smbDir.toString());
+            }
+            throw new IOException("Verzeichnis konnte nicht erstellt werden: " + smbDir + " – " + e.getMessage(), e);
         } catch (Exception e) {
             throw new IOException("Verzeichnis konnte nicht erstellt werden: " + smbDir + " – " + e.getMessage(), e);
         }

@@ -1,6 +1,6 @@
 package com.cleanmediamanager.core;
 
-import com.cleanmediamanager.api.TmdbClient;
+import com.cleanmediamanager.api.MetadataProvider;
 import com.cleanmediamanager.model.EpisodeMatch;
 import com.cleanmediamanager.model.MatchStatus;
 import com.cleanmediamanager.model.MediaFile;
@@ -17,12 +17,12 @@ import java.util.function.Consumer;
 
 public class SeriesMatcher {
 
-    private final TmdbClient tmdbClient;
+    private final MetadataProvider tmdbClient;
     private final FilenameParser parser;
     private final FormatService formatService;
     private final MatchScorer scorer;
 
-    public SeriesMatcher(TmdbClient tmdbClient) {
+    public SeriesMatcher(MetadataProvider tmdbClient) {
         this.tmdbClient = tmdbClient;
         this.parser = new FilenameParser();
         this.formatService = new FormatService();
@@ -63,7 +63,7 @@ public class SeriesMatcher {
                             return CompletableFuture.completedFuture(null);
                         }
                         SeriesMatch series = results.get(0);
-                        double score = scorer.scoreSeries(title, null, series);
+                        double score = scoreBest(title, null, series);
                         // store candidate on files; if confidence low, mark UNMATCHED and skip fetching seasons
                         if (score < MatchScorer.DEFAULT_THRESHOLD) {
                             group.forEach(f -> {
@@ -94,9 +94,20 @@ public class SeriesMatcher {
     }
 
     /**
-     * Re-matches files against a user-supplied series.
-     * Groups by season and fetches each season only once.
+     * Scores the top search result, trusting it as a confident match whenever the
+     * provider doesn't localize titles (e.g. IMDb): its own server-side AKA/fuzzy
+     * matching already resolved the (possibly foreign-language) query, so a plain
+     * text-similarity comparison against the original-language title would
+     * otherwise wrongly reject a correct match.
      */
+    private double scoreBest(String title, String year, SeriesMatch best) {
+        double score = scorer.scoreSeries(title, year, best);
+        if (!tmdbClient.supportsTitleLocalization()) {
+            score = Math.max(score, MatchScorer.DEFAULT_THRESHOLD);
+        }
+        return score;
+    }
+
     public CompletableFuture<Void> matchFilesWithSeries(List<MediaFile> files,
             SeriesMatch series, Consumer<MediaFile> onFileUpdated) {
         List<MediaFile> parseable = new ArrayList<>();

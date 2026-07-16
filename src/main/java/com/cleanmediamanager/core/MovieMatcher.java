@@ -1,6 +1,6 @@
 package com.cleanmediamanager.core;
 
-import com.cleanmediamanager.api.TmdbClient;
+import com.cleanmediamanager.api.MetadataProvider;
 import com.cleanmediamanager.model.MediaFile;
 import com.cleanmediamanager.model.MatchStatus;
 import com.cleanmediamanager.model.MovieMatch;
@@ -11,12 +11,12 @@ import java.util.function.Consumer;
 
 public class MovieMatcher {
 
-    private final TmdbClient tmdbClient;
+    private final MetadataProvider tmdbClient;
     private final FilenameParser parser;
     private final FormatService formatService;
     private final MatchScorer scorer;
 
-    public MovieMatcher(TmdbClient tmdbClient) {
+    public MovieMatcher(MetadataProvider tmdbClient) {
         this.tmdbClient = tmdbClient;
         this.parser = new FilenameParser();
         this.formatService = new FormatService();
@@ -39,7 +39,7 @@ public class MovieMatcher {
                 .thenCompose(matches -> {
                     if (matches != null && !matches.isEmpty()) {
                         MovieMatch best = matches.get(0);
-                        double score = scorer.scoreMovie(title, year, best);
+                        double score = scoreBest(title, year, best);
                         file.setMatch(best);
                         file.setMatchScore(score);
                         if (score >= MatchScorer.DEFAULT_THRESHOLD) {
@@ -71,7 +71,7 @@ public class MovieMatcher {
                                         .thenCompose(fm -> {
                                             if (fm != null && !fm.isEmpty()) {
                                                 MovieMatch best = fm.get(0);
-                                                double score = scorer.scoreMovie(folderTitle, useYear, best);
+                                                double score = scoreBest(folderTitle, useYear, best);
                                                 file.setMatch(best);
                                                 file.setMatchScore(score);
                                                 if (score >= MatchScorer.DEFAULT_THRESHOLD) {
@@ -106,5 +106,20 @@ public class MovieMatcher {
                     }
                     return null;
                 });
+    }
+
+    /**
+     * Scores the top search result, trusting it as a confident match whenever the
+     * provider doesn't localize titles (e.g. IMDb): its own server-side AKA/fuzzy
+     * matching already resolved the (possibly foreign-language) query, so a plain
+     * text-similarity comparison against the original-language title would
+     * otherwise wrongly reject a correct match.
+     */
+    private double scoreBest(String title, String year, MovieMatch best) {
+        double score = scorer.scoreMovie(title, year, best);
+        if (!tmdbClient.supportsTitleLocalization()) {
+            score = Math.max(score, MatchScorer.DEFAULT_THRESHOLD);
+        }
+        return score;
     }
 }

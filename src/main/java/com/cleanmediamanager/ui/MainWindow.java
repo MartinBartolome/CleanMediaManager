@@ -151,8 +151,12 @@ public class MainWindow {
         toolBar.add(modeCombo);
 
         toolBar.add(new JLabel("  DB: "));
-        JComboBox<String> dbCombo = new JComboBox<>(new String[]{"TheMovieDB"});
-        dbCombo.setMaximumSize(new Dimension(140, 28));
+        String[] providers = {"TMDB", "IMDB"};
+        JComboBox<String> dbCombo = new JComboBox<>(providers);
+        dbCombo.setMaximumSize(new Dimension(90, 28));
+        dbCombo.setToolTipText("Metadaten-Quelle: TMDB (API-Key nötig) oder IMDB (ohne API-Key)");
+        Preferences providerPrefs = Preferences.userNodeForPackage(Controller.class);
+        dbCombo.setSelectedItem(providerPrefs.get("metadata_provider", "TMDB"));
         toolBar.add(dbCombo);
 
         toolBar.add(new JLabel("  Lang: "));
@@ -161,8 +165,11 @@ public class MainWindow {
         langCombo.setMaximumSize(new Dimension(90, 28));
         Preferences prefs = Preferences.userNodeForPackage(Controller.class);
         langCombo.setSelectedItem(prefs.get("tmdb_language", "en-US"));
+        langCombo.setToolTipText("Sprache der Suchergebnisse (TMDB: direkt; IMDB: Titel werden zusätzlich über Wikidata übersetzt)");
         langCombo.addActionListener(e -> controller.onLanguageChanged((String) langCombo.getSelectedItem()));
         toolBar.add(langCombo);
+
+        dbCombo.addActionListener(e -> controller.onProviderChanged((String) dbCombo.getSelectedItem()));
 
         return toolBar;
     }

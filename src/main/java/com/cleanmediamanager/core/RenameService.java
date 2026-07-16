@@ -31,36 +31,40 @@ public class RenameService {
             Path parent = source.getParent();
             String newName = file.getNewName();
 
-            // If template contains a single '/', interpret as "newParentName/newFileName"
+            // A template may contain one or more '/': all but the last segment are folder
+            // names (nested, e.g. "{series}/Season {season:02d}/{file}"), the last segment
+            // is the file name. With no '/' at all, it's just a plain rename in-place.
+            String[] parts = newName.split("/", -1);
+            boolean folderMode = parts.length > 1;
             Path target;
-            int slashIdx = newName.indexOf('/');
-            boolean folderMode = slashIdx >= 0;
+            Path innerMostDir = null;
+
             if (folderMode) {
-                // only allow exactly one leading folder separator (single level)
-                if (newName.indexOf('/', slashIdx + 1) != -1) {
-                    log.add("[SKIP] Template contains more than one '/' — only single parent folder supported: " + newName);
-                    continue;
+                String[] folderParts = new String[parts.length - 1];
+                System.arraycopy(parts, 0, folderParts, 0, folderParts.length);
+                String fileName = parts[parts.length - 1].trim();
+
+                boolean invalid = fileName.isEmpty() || fileName.contains("\\");
+                for (int i = 0; i < folderParts.length && !invalid; i++) {
+                    folderParts[i] = folderParts[i].trim();
+                    if (folderParts[i].isEmpty() || folderParts[i].contains("\\")) invalid = true;
                 }
-                String folderName = newName.substring(0, slashIdx).trim();
-                String fileName = newName.substring(slashIdx + 1).trim();
-                if (folderName.isEmpty() || fileName.isEmpty()) {
+                if (invalid) {
                     log.add("[SKIP] Invalid folder/file template: " + newName);
-                    continue;
-                }
-                // prevent nested separators in parts
-                if (folderName.contains("\\") || folderName.contains("/") || fileName.contains("\\")) {
-                    log.add("[SKIP] Invalid characters in folder/file template: " + newName);
                     continue;
                 }
 
                 Path grandParent = parent.getParent();
                 if (grandParent == null) {
-                    log.add("[SKIP] Cannot rename parent folder: no grandparent exists for " + source.toString());
+                    log.add("[SKIP] Cannot create parent folder: no grandparent exists for " + source.toString());
                     continue;
                 }
 
-                Path desiredParent = grandParent.resolve(folderName);
-                target = desiredParent.resolve(fileName);
+                innerMostDir = grandParent.resolve(folderParts[0]);
+                for (int i = 1; i < folderParts.length; i++) {
+                    innerMostDir = innerMostDir.resolve(folderParts[i]);
+                }
+                target = innerMostDir.resolve(fileName);
             } else {
                 target = parent.resolve(newName);
             }
@@ -76,45 +80,23 @@ public class RenameService {
             }
 
             try {
+                // 1) Ensure the destination folder (all nested levels, if any) exists.
                 if (folderMode) {
-                    Path parentDir = parent;
-                    Path grandParent = parentDir.getParent();
-                    Path desiredParent = grandParent.resolve(newName.substring(0, slashIdx).trim());
+                    Files.createDirectories(innerMostDir);
+                }
+                // 2) Never silently overwrite an existing file at the destination.
+                if (Files.exists(target)) {
+                    log.add("[SKIP] Zieldatei existiert bereits, überspringe: " + target);
+                    continue;
+                }
+                // 3) Move (and thereby rename) the file into place.
+                Files.move(source, target);
+                log.add("[OK] Renamed: " + file.getOriginalName() + "  →  " + target);
+                file.setOriginalName(target.getFileName().toString());
 
-                    if (Files.exists(desiredParent)) {
-                        // If desired parent exists, move file into it with new filename
-                        if (!Files.isDirectory(desiredParent)) {
-                            log.add("[SKIP] Desired parent exists but is not a directory: " + desiredParent);
-                            continue;
-                        }
-                        Path finalTarget = desiredParent.resolve(newName.substring(slashIdx + 1).trim());
-                        if (Files.exists(finalTarget)) {
-                            log.add("[SKIP] Target already exists, skipping: " + finalTarget);
-                            continue;
-                        }
-                        Files.move(source, finalTarget);
-                        log.add("[OK] Moved file into existing folder and renamed: " + file.getOriginalName() + "  →  " + finalTarget);
-                        file.setOriginalName(finalTarget.getFileName().toString());
-                    } else {
-                        // Rename the parent folder itself, then move file path accordingly
-                        Path movedParent = Files.move(parentDir, desiredParent);
-                        Path finalTarget = movedParent.resolve(newName.substring(slashIdx + 1).trim());
-                        if (Files.exists(finalTarget)) {
-                            log.add("[SKIP] Target already exists after parent rename, skipping: " + finalTarget);
-                            continue;
-                        }
-                        Files.move(desiredParent.resolve(source.getFileName()), finalTarget);
-                        log.add("[OK] Renamed parent folder and file: " + file.getOriginalName() + "  →  " + finalTarget);
-                        file.setOriginalName(finalTarget.getFileName().toString());
-                    }
-                } else {
-                    if (Files.exists(target)) {
-                        log.add("[SKIP] Target already exists, skipping: " + target.getFileName());
-                        continue;
-                    }
-                    Files.move(source, target);
-                    log.add("[OK] Renamed: " + file.getOriginalName() + "  →  " + file.getNewName());
-                    file.setOriginalName(file.getNewName());
+                // 4) Clean up: if the original source folder is now empty, remove it.
+                if (folderMode && !parent.equals(target.getParent())) {
+                    deleteIfEmpty(parent, log);
                 }
             } catch (IOException e) {
                 log.add("[ERROR] Failed to rename " + file.getOriginalName() + ": " + e.getMessage());
@@ -122,5 +104,19 @@ public class RenameService {
             }
         }
         return log;
+    }
+
+    /** Deletes {@code dir} if it exists and no longer contains any entries, logging failures. */
+    private void deleteIfEmpty(Path dir, List<String> log) {
+        try {
+            if (!Files.exists(dir) || !Files.isDirectory(dir)) return;
+            try (var entries = Files.newDirectoryStream(dir)) {
+                if (entries.iterator().hasNext()) return; // not empty, leave it alone
+            }
+            Files.delete(dir);
+            log.add("[OK] Leeren Quellordner gelöscht: " + dir);
+        } catch (IOException e) {
+            log.add("[WARN] Leerer Quellordner konnte nicht gelöscht werden: " + dir + " – " + e.getMessage());
+        }
     }
 }
